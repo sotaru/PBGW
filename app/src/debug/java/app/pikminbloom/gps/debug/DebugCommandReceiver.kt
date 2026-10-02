@@ -73,6 +73,16 @@ class DebugCommandReceiver : BroadcastReceiver() {
             }
             "checkpoint" -> Log.i(TAG, "CHECKPOINT ${app.pikminbloom.gps.service.PatrolCheckpoint.load(context)?.toJson() ?: "none"}")
             "pause" -> PatrolService.pause(context)
+            "configure_movement" -> {
+                val editor = prefs.sp.edit()
+                if (intent.hasExtra("inject_steps")) editor.putBoolean(Prefs.KEY_INJECT_STEPS, intent.getBooleanExtra("inject_steps", true))
+                if (intent.hasExtra("loop_mode")) editor.putString(Prefs.KEY_LOOP_MODE, intent.getStringExtra("loop_mode"))
+                if (intent.hasExtra("auto_return_laps")) editor.putString(Prefs.KEY_AUTO_RETURN_LAPS, intent.getIntExtra("auto_return_laps", 0).toString())
+                intent.getStringExtra("line_width")?.toDoubleOrNull()?.let { if (it.isFinite() && it in 1.0..1000.0) prefs.spiralLineWidthM = it }
+                editor.apply()
+            }
+            "teleport" -> parseLatLng(intent.getStringExtra("position"))?.let { PatrolService.teleport(context, it) }
+            "spiral" -> PatrolService.startSpiral(context)
             "resume" -> PatrolService.resume(context)
             "return_home" -> PatrolService.returnHome(context)
             "stop" -> PatrolService.stop(context)
@@ -131,6 +141,11 @@ class DebugCommandReceiver : BroadcastReceiver() {
                     .put("lastError", s.lastError)
                     .put("travelOverride", s.travelOverride?.name)
                     .put("homeIsCustom", s.homeIsCustom)
+                    .put("mode", s.mode.name)
+                    .put("spiralCenter", s.spiralCenter?.toString())
+                    .put("spiralRadiusM", s.spiralRadiusM)
+                    .put("spiralLineWidthM", s.spiralLineWidthM)
+                    .put("spiralSpacingM", s.spiralSpacingM)
                     .put("joystick", PatrolService.joystick.value.toString())
                     .put("customHome", prefs.customHome?.toString())
                     .put("mockAppSelected", mock.isMockAppSelected())

@@ -512,7 +512,7 @@ class OverlayService : Service() {
         b.btnToggle.contentDescription =
             getString(if (paused) R.string.ovl_cd_resume else R.string.ovl_cd_pause)
         enable(b.btnToggle, moving || paused)
-        enable(b.btnHome, moving || state.phase == PatrolPhase.PAUSED)
+        enable(b.btnHome, state.home != null && (moving || state.phase == PatrolPhase.PAUSED || state.phase == PatrolPhase.HOLDING))
         // Vehicle icon shows what is in force; joystick icon lights up while the pad is out.
         val vehicle = PatrolService.travelOverride.value
         b.btnVehicle.setImageResource(if (vehicle == null) R.drawable.ic_walk else R.drawable.ic_car)
@@ -567,6 +567,7 @@ class OverlayService : Service() {
         PatrolPhase.STOPPING -> R.string.ovl_phase_stopping
         PatrolPhase.PARKED -> R.string.ovl_phase_parked
         PatrolPhase.MANUAL -> R.string.ovl_phase_manual
+        PatrolPhase.HOLDING -> R.string.phase_holding
     }
 
     @ColorRes

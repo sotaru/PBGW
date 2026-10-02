@@ -68,17 +68,21 @@ class StepInjector(context: Context) {
      * chunks of at most [MAX_CHUNK] so every record stays plausible. Never throws; returns false on
      * failure (missing permission, rate limit, HC unavailable...).
      */
-    suspend fun write(start: Instant, end: Instant, steps: Long, distanceM: Double): Boolean {
+    suspend fun write(
+        start: Instant, end: Instant, steps: Long, distanceM: Double,
+        recordId: String? = null, zone: ZoneId = ZoneId.systemDefault(),
+    ): Boolean {
         val hc = client ?: run { Log.w(TAG, "write: Health Connect unavailable"); return false }
         if (steps <= 0) return true
         val now = Instant.now()
+        // Outbox retries must not change the immutable payload when the wall clock moves backwards.
+        if (recordId != null && (end <= start || end > now)) return false
         val safeEnd = if (end.isAfter(now)) now else end
         var safeStart = if (start.isBefore(safeEnd)) start else safeEnd.minusSeconds(1)
         if (safeStart.isAfter(now)) safeStart = now.minusSeconds(1)
 
         val total = Duration.between(safeStart, safeEnd)
         val chunkCount = ((total.toMillis() + MAX_CHUNK.toMillis() - 1) / MAX_CHUNK.toMillis()).toInt().coerceAtLeast(1)
-        val zone = ZoneId.systemDefault()
         val device = Device(manufacturer = Build.MANUFACTURER, model = Build.MODEL, type = Device.TYPE_PHONE)
 
         val records = ArrayList<androidx.health.connect.client.records.Record>(chunkCount * 2)
@@ -87,8 +91,9 @@ class StepInjector(context: Context) {
         var cursor = safeStart
         for (i in 0 until chunkCount) {
             val chunkEnd = if (i == chunkCount - 1) safeEnd else cursor.plus(MAX_CHUNK)
-            val chunkSteps = if (i == chunkCount - 1) stepsLeft else (steps / chunkCount)
-            val chunkDist = if (i == chunkCount - 1) distLeft else (distanceM / chunkCount)
+            val fraction = Duration.between(cursor, chunkEnd).toMillis().toDouble() / total.toMillis().coerceAtLeast(1)
+            val chunkSteps = if (i == chunkCount - 1) stepsLeft else (steps * fraction).toLong()
+            val chunkDist = if (i == chunkCount - 1) distLeft else distanceM * fraction
             stepsLeft -= chunkSteps
             distLeft -= chunkDist
             val startOff = zone.rules.getOffset(cursor)
@@ -103,7 +108,7 @@ class StepInjector(context: Context) {
                         count = chunkSteps.coerceIn(1, 1_000_000),
                         metadata = Metadata.autoRecorded(
                             device = device,
-                            clientRecordId = "$CLIENT_PREFIX-steps-${cursor.toEpochMilli()}",
+                            clientRecordId = "$CLIENT_PREFIX-steps-${recordId ?: cursor.toEpochMilli()}-$i",
                         ),
                     )
                 )
@@ -118,7 +123,7 @@ class StepInjector(context: Context) {
                         distance = Length.meters(chunkDist),
                         metadata = Metadata.autoRecorded(
                             device = device,
-                            clientRecordId = "$CLIENT_PREFIX-dist-${cursor.toEpochMilli()}",
+                            clientRecordId = "$CLIENT_PREFIX-dist-${recordId ?: cursor.toEpochMilli()}-$i",
                         ),
                     )
                 )
@@ -153,8 +158,14 @@ class StepInjector(context: Context) {
     }
 
     /** Steps this app itself wrote since local midnight. */
-    suspend fun stepsWrittenByUsToday(): Long {
-        val hc = client ?: return 0
+    suspend fun stepsWrittenByUsToday(): Long = stepsWrittenByUsOn(LocalDate.now(), ZoneId.systemDefault()) ?: 0L
+
+    /** Nullable on read failure; callers enforcing a cap must not confuse failure with zero. */
+    suspend fun stepsWrittenByUsOn(date: LocalDate, zone: ZoneId): Long? {
+        val hc = client ?: return null
+        val start = date.atStartOfDay(zone).toInstant()
+        val end = minOf(date.plusDays(1).atStartOfDay(zone).toInstant(), Instant.now())
+        if (end <= start) return 0L
         var total = 0L
         var token: String? = null
         try {
@@ -162,17 +173,23 @@ class StepInjector(context: Context) {
                 val resp = hc.readRecords(
                     ReadRecordsRequest(
                         recordType = StepsRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(localMidnight(), Instant.now()),
+                        timeRangeFilter = TimeRangeFilter.between(start, end),
                         dataOriginFilter = setOf(DataOrigin(packageName)),
                         pageSize = 1000,
                         pageToken = token,
                     )
                 )
-                total += resp.records.sumOf { it.count }
+                // Old versions could write a record spanning midnight. Only count the part in this day.
+                total += resp.records.sumOf { record ->
+                    val overlap = Duration.between(maxOf(record.startTime, start), minOf(record.endTime, end)).toMillis().coerceAtLeast(0)
+                    val duration = Duration.between(record.startTime, record.endTime).toMillis().coerceAtLeast(1)
+                    (record.count * (overlap.toDouble() / duration)).toLong()
+                }
                 token = resp.pageToken
             } while (token != null)
         } catch (t: Throwable) {
             Log.w(TAG, "readRecords failed: ${t.message}")
+            return null
         }
         return total
     }

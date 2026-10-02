@@ -29,6 +29,8 @@ data class Sample(
     val countsSteps: Boolean = true,
     /** Progress along the plan in metres (exact, without lateral noise). */
     val progressM: Double = 0.0,
+    /** Only the on-foot portion, even when this tick crosses a vehicle/walking boundary. */
+    val stepDistanceDeltaM: Double = if (countsSteps) distanceDeltaM else 0.0,
 )
 
 /**
@@ -97,6 +99,21 @@ class WalkSimulator(
         )
     }
 
+    /** Instant relocation has no travelled distance, steps or waypoint arrival. */
+    fun relocate(position: LatLng) {
+        plan = PatrolPlan.EMPTY
+        segIdx = 0
+        distIntoSeg = 0.0
+        progress = 0.0
+        manualPos = null
+        noiseNorthM = 0.0
+        noiseEastM = 0.0
+        finished = true
+        lastSample = idleSample(position)
+    }
+
+    fun exactCurrentPosition(): LatLng = exactPosition()
+
     /** Applies a settings change mid-walk; the new speed is used from the next tick on. */
     fun updateConfig(config: PatrolConfig) {
         this.config = config
@@ -112,6 +129,7 @@ class WalkSimulator(
     fun current(): Sample = lastSample.copy(
         speedMps = 0.0,
         distanceDeltaM = 0.0,
+        stepDistanceDeltaM = 0.0,
         arrivedAtWaypoint = null,
         lapFinished = false,
     )
@@ -147,6 +165,7 @@ class WalkSimulator(
                 accuracyM = accuracy,
                 altitudeM = altitude,
                 distanceDeltaM = 0.0,
+                stepDistanceDeltaM = 0.0,
                 arrivedAtWaypoint = null,
                 lapFinished = false,
                 position = noisy(exactPosition()),
@@ -159,6 +178,7 @@ class WalkSimulator(
         // switch to the new leg's speed instead of finishing the tick at the old one.
         var remainingTime = dt
         var moved = 0.0
+        var walked = 0.0
         var arrived: Int? = null
         var lapDone = false
         var lastLegSpeed = 0.0
@@ -174,6 +194,7 @@ class WalkSimulator(
             distIntoSeg += step
             remainingTime -= step / legSpeed
             moved += step
+            if (legCountsSteps(seg)) walked += step
             progress += step
             if (distIntoSeg >= seg.lengthM - 1e-9) {
                 if (seg.arrivalAtEnd && seg.waypointIndex != null) arrived = seg.waypointIndex
@@ -212,6 +233,7 @@ class WalkSimulator(
             lapFinished = lapDone,
             progressM = progress,
             countsSteps = legCountsSteps(seg),
+            stepDistanceDeltaM = walked,
         )
         return lastSample
     }

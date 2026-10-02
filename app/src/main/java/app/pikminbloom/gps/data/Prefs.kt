@@ -59,6 +59,7 @@ class Prefs(context: Context) {
             val lon = java.lang.Double.longBitsToDouble(sp.getLong(KEY_HOME_LON, 0))
             return runCatching { LatLng(lat, lon) }.getOrNull()
         }
+
         set(v) = sp.edit {
             if (v == null) {
                 remove(KEY_HOME_LAT); remove(KEY_HOME_LON); remove(KEY_HOME_SAVED_AT)
@@ -68,6 +69,14 @@ class Prefs(context: Context) {
                 putLong(KEY_HOME_SAVED_AT, System.currentTimeMillis())
             }
         }
+
+    var mapProvider: MapProvider
+        get() = enum("map_provider", MapProvider.OPENSTREETMAP)
+        set(value) = sp.edit { putString("map_provider", value.name) }
+
+    var spiralLineWidthM: Double
+        get() = str("spiral_line_width_m", 40.0).coerceIn(1.0, 1000.0)
+        set(value) = sp.edit { putString("spiral_line_width_m", value.toString()) }
 
     /**
      * A home the user chose on the map instead of where the phone really is (「我近期想要待在

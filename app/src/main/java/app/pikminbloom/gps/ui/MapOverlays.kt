@@ -31,12 +31,20 @@ import org.osmdroid.views.overlay.infowindow.MarkerInfoWindow
  * [rebuildStatic] re-creates everything that only changes when the waypoint list / settings change;
  * [updatePosition] / [updateTrail] are cheap and run on every 1 Hz state update.
  */
+interface PatrolMapOverlays {
+    fun rebuildStatic(waypoints: List<Waypoint>, home: LatLng?, route: List<GeoPoint>)
+    fun updateRoute(route: List<GeoPoint>)
+    fun updateTrail(points: List<GeoPoint>)
+    fun updatePosition(position: LatLng?, bearingDeg: Float)
+    fun updateScanned(flowers: List<LatLng>, names: List<String> = emptyList())
+}
+
 class MapOverlays(
     private val context: Context,
     private val map: MapView,
     private val eventsOverlay: Overlay,
     private val onWaypointTap: (Int) -> Unit,
-) {
+) : PatrolMapOverlays {
 
     private val density = context.resources.displayMetrics.density
     private val routeColor = ContextCompat.getColor(context, R.color.route_line)
@@ -81,7 +89,7 @@ class MapOverlays(
     private var hasPosition = false
 
     /** Rebuilds waypoints / circles / home / planned route and re-stacks the overlay list. */
-    fun rebuildStatic(waypoints: List<Waypoint>, home: LatLng?, route: List<GeoPoint>) {
+    override fun rebuildStatic(waypoints: List<Waypoint>, home: LatLng?, route: List<GeoPoint>) {
         waypointMarkers.clear()
         circles.clear()
 
@@ -124,18 +132,18 @@ class MapOverlays(
         restack()
     }
 
-    fun updateRoute(route: List<GeoPoint>) {
+    override fun updateRoute(route: List<GeoPoint>) {
         routeLine.setPoints(route)
         map.invalidate()
     }
 
-    fun updateTrail(points: List<GeoPoint>) {
+    override fun updateTrail(points: List<GeoPoint>) {
         trailLine.setPoints(points)
         map.invalidate()
     }
 
     /** Simulated position arrow; pass null to hide it. */
-    fun updatePosition(position: LatLng?, bearingDeg: Float) {
+    override fun updatePosition(position: LatLng?, bearingDeg: Float) {
         val show = position != null
         if (position != null) {
             positionMarker.setPosition(GeoPoint(position.lat, position.lon))
@@ -154,7 +162,7 @@ class MapOverlays(
      * Flowers found by the bird's-eye scan, drawn in a distinct colour so they are not mistaken for
      * route waypoints. Pass an empty list to clear them.
      */
-    fun updateScanned(flowers: List<LatLng>, names: List<String> = emptyList()) {
+    override fun updateScanned(flowers: List<LatLng>, names: List<String>) {
         val changed = flowers.size != scannedMarkers.size ||
             flowers.withIndex().any { (i, p) ->
                 val m = scannedMarkers[i]

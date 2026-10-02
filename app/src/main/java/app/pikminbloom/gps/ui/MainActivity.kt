@@ -25,7 +25,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import app.pikminbloom.gps.R
+import app.pikminbloom.gps.BuildConfig
+import app.pikminbloom.gps.data.MapProvider
 import app.pikminbloom.gps.data.PatrolPhase
+import app.pikminbloom.gps.data.PatrolMode
 import app.pikminbloom.gps.data.PatrolState
 import app.pikminbloom.gps.data.Prefs
 import app.pikminbloom.gps.data.TravelMode
@@ -36,6 +39,7 @@ import app.pikminbloom.gps.geo.GeoMath
 import app.pikminbloom.gps.geo.LatLng
 import app.pikminbloom.gps.mock.MockLocationController
 import app.pikminbloom.gps.route.PatrolPlanner
+import app.pikminbloom.gps.route.SpiralRoute
 import app.pikminbloom.gps.service.PatrolCheckpoint
 import app.pikminbloom.gps.service.PatrolEvent
 import app.pikminbloom.gps.service.PatrolService
@@ -72,7 +76,11 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     private lateinit var store: WaypointStore
     private lateinit var mock: MockLocationController
     private lateinit var steps: StepInjector
-    private lateinit var overlays: MapOverlays
+    private lateinit var overlays: PatrolMapOverlays
+    private lateinit var osmOverlays: MapOverlays
+    private var googleLayer: GoogleMapLayer? = null
+    private var mapProvider = MapProvider.OPENSTREETMAP
+    private var googleSavedState: Bundle? = null
 
     private lateinit var locationLauncher: ActivityResultLauncher<String>
     private lateinit var notificationLauncher: ActivityResultLauncher<String>
@@ -122,6 +130,9 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         registerLaunchers()
         applyInsets()
         setupMap()
+        binding.bottomCard.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateGoogleInsets() }
+        googleSavedState = savedInstanceState?.getBundle("google_map_state")
+        if (prefs.mapProvider == MapProvider.GOOGLE) switchMap(MapProvider.GOOGLE)
         setupButtons()
         collectFlows()
 
@@ -145,6 +156,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     override fun onResume() {
         super.onResume()
         binding.map.onResume()
+        googleLayer?.onResume()
         currentHome = PatrolService.state.value.home ?: prefs.customHome ?: prefs.home
         rebuildOverlays()
         render(PatrolService.state.value)
@@ -168,13 +180,17 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         if (resumeDialogShown || PatrolService.isRunning) return
         val cp = PatrolCheckpoint.resumable(this) ?: return
         resumeDialogShown = true
-        val wpName = store.routeList().firstOrNull { it.id == cp.routeId }?.name ?: store.activeRouteName()
+        val wpName = when (cp.mode) {
+            PatrolMode.SPIRAL -> getString(R.string.target_spiral)
+            PatrolMode.HOLD -> getString(R.string.target_hold)
+            PatrolMode.WAYPOINTS -> store.routeList().firstOrNull { it.id == cp.routeId }?.name ?: store.activeRouteName()
+        }
         val msg = getString(
             R.string.dlg_resume_msg,
             ageText(cp.ageMs),
             wpName,
             distanceText(cp.distanceWalkedM),
-            distanceText(GeoMath.distanceM(cp.position, cp.home)),
+            cp.home?.let { distanceText(GeoMath.distanceM(cp.position, it)) } ?: getString(R.string.home_unknown),
         )
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.dlg_resume_title)
@@ -182,13 +198,13 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             .setCancelable(false)
             .setPositiveButton(R.string.action_resume_patrol) { _, _ ->
                 lifecycleScope.launch {
-                    if (preflight()) PatrolService.resumeFromCheckpoint(this@MainActivity, thenReturnHome = false)
+                    if (preflight(requireWaypoints = cp.mode == PatrolMode.WAYPOINTS, checkHealth = cp.mode != PatrolMode.HOLD)) PatrolService.resumeFromCheckpoint(this@MainActivity, thenReturnHome = false)
                     else resumeDialogShown = false
                 }
             }
             .setNeutralButton(R.string.action_resume_go_home) { _, _ ->
                 lifecycleScope.launch {
-                    if (preflight()) PatrolService.resumeFromCheckpoint(this@MainActivity, thenReturnHome = true)
+                    if (cp.home != null && preflight(requireWaypoints = false)) PatrolService.resumeFromCheckpoint(this@MainActivity, thenReturnHome = true)
                     else resumeDialogShown = false
                 }
             }
@@ -205,7 +221,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
                     .setNegativeButton(R.string.action_cancel) { _, _ -> resumeDialogShown = false }
                     .show()
             }
-            .show()
+            .show().apply { getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).isEnabled = cp.home != null }
     }
 
     private fun ageText(ms: Long): String {
@@ -215,13 +231,35 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     override fun onPause() {
+        googleLayer?.onPause()
         binding.map.onPause()
         super.onPause()
     }
 
     override fun onDestroy() {
+        googleLayer?.onDestroy()
         runCatching { binding.map.onDetach() }
         super.onDestroy()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        googleLayer?.onStart()
+    }
+
+    override fun onStop() {
+        googleLayer?.onStop()
+        super.onStop()
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        googleLayer?.onLowMemory()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        googleLayer?.let { outState.putBundle("google_map_state", it.saveState()) }
+        super.onSaveInstanceState(outState)
     }
 
     // ------------------------------------------------------------------ setup
@@ -292,13 +330,14 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
             controller.setZoom(DEFAULT_ZOOM)
         }
-        overlays = MapOverlays(this, binding.map, MapEventsOverlay(this), ::onWaypointTapped)
+        osmOverlays = MapOverlays(this, binding.map, MapEventsOverlay(this), ::onWaypointTapped)
+        overlays = osmOverlays
         rebuildOverlays()
         centerInitially()
     }
 
     private fun setupButtons() {
-        binding.btnStart.setOnClickListener { startPatrol(0) }
+        binding.btnStart.setOnClickListener { showPatrolModeDialog() }
         binding.btnPause.setOnClickListener { PatrolService.pause(this) }
         binding.btnResume.setOnClickListener { PatrolService.resume(this) }
         binding.btnHome.setOnClickListener { PatrolService.returnHome(this) }
@@ -309,6 +348,10 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     /** A plain stop leaves the game at the fake position (looks like a teleport); suggest 回家 first. */
     private fun confirmStop() {
+        if (PatrolService.state.value.mode != PatrolMode.WAYPOINTS) {
+            PatrolService.stop(this)
+            return
+        }
         val phase = PatrolService.state.value.phase
         if (phase == PatrolPhase.PARKED) {
             // Parked at the custom home: stopping is the one deliberate teleport back to real GPS.
@@ -457,6 +500,10 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     private fun center(p: LatLng, resetZoom: Boolean = false) {
+        if (mapProvider == MapProvider.GOOGLE) {
+            googleLayer?.center(p, if (resetZoom) DEFAULT_ZOOM else null, animate = !resetZoom)
+            return
+        }
         val gp = GeoPoint(p.lat, p.lon)
         if (resetZoom) {
             binding.map.controller.setZoom(DEFAULT_ZOOM)
@@ -464,6 +511,75 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         } else {
             binding.map.controller.animateTo(gp)
         }
+    }
+
+    private fun mapCenter(): LatLng = if (mapProvider == MapProvider.GOOGLE) googleLayer!!.currentCenter()
+        else binding.map.mapCenter.let { LatLng(it.latitude, it.longitude) }
+
+    private fun showMapProviderDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.menu_map_provider)
+            .setSingleChoiceItems(arrayOf("OpenStreetMap", "Google Maps"), mapProvider.ordinal) { dialog, index ->
+                switchMap(MapProvider.entries[index])
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun switchMap(provider: MapProvider) {
+        if (provider == mapProvider) return
+        if (provider == MapProvider.GOOGLE && !BuildConfig.HAS_GOOGLE_MAPS_KEY) {
+            MaterialAlertDialogBuilder(this).setTitle(R.string.google_maps_not_ready)
+                .setMessage(R.string.google_maps_key_needed).setPositiveButton(R.string.action_ok, null).show()
+            return
+        }
+        if (provider == MapProvider.GOOGLE && com.google.android.gms.common.GoogleApiAvailability.getInstance()
+            .isGooglePlayServicesAvailable(this) != com.google.android.gms.common.ConnectionResult.SUCCESS) {
+            toast(getString(R.string.google_maps_services_needed))
+            return
+        }
+        val currentCenter = mapCenter()
+        val zoom = if (mapProvider == MapProvider.GOOGLE) googleLayer!!.currentZoom() else binding.map.zoomLevelDouble
+        if (provider == MapProvider.GOOGLE) {
+            if (googleLayer == null) {
+                try {
+                    googleLayer = GoogleMapLayer(this, binding.googleMapContainer, googleSavedState, ::onWaypointTapped) {
+                        longPressHelper(GeoPoint(it.lat, it.lon))
+                    }
+                    if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) googleLayer?.onStart()
+                    if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) googleLayer?.onResume()
+                } catch (t: Exception) {
+                    binding.googleMapContainer.removeAllViews()
+                    toast(getString(R.string.google_maps_services_needed))
+                    return
+                }
+            }
+            googleLayer!!.center(currentCenter, zoom, animate = false)
+            updateGoogleInsets()
+            overlays = googleLayer!!
+        } else {
+            binding.map.controller.setZoom(zoom)
+            binding.map.controller.setCenter(GeoPoint(currentCenter.lat, currentCenter.lon))
+            overlays = osmOverlays
+        }
+        mapProvider = provider
+        prefs.mapProvider = provider
+        binding.googleMapContainer.visibility = if (provider == MapProvider.GOOGLE) View.VISIBLE else View.GONE
+        binding.map.visibility = if (provider == MapProvider.OPENSTREETMAP) View.VISIBLE else View.GONE
+        updateGoogleInsets()
+        rebuildOverlays()
+        overlays.updateTrail(trail)
+        overlays.updatePosition(PatrolService.state.value.position, lastBearing)
+        val found = FlowerScanner.state.value.foundFlowers
+        overlays.updateScanned(found.map { it.waypoint.latLng }, found.map { it.waypoint.name })
+    }
+
+    private fun updateGoogleInsets() {
+        val top = binding.toolbar.height
+        val bottom = (binding.root.height - binding.bottomCard.top).coerceAtLeast(0)
+        googleLayer?.setContentInsets(top, bottom)
+        binding.mapCrosshair.translationY = if (mapProvider == MapProvider.GOOGLE) (top - bottom) / 2f else 0f
     }
 
     private var overlayGeneration = 0L
@@ -474,9 +590,17 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         val generation = ++overlayGeneration
         // Draw markers/circles immediately; the route preview (planner) is computed off the main thread.
         overlays.rebuildStatic(waypoints, home, emptyList())
-        if (waypoints.isEmpty()) return
+        val state = PatrolService.state.value
+        if (state.mode == PatrolMode.HOLD || (waypoints.isEmpty() && state.mode != PatrolMode.SPIRAL)) return
         lifecycleScope.launch {
-            val route = withContext(Dispatchers.Default) { plannedRoute(waypoints, home) }
+            val route = withContext(Dispatchers.Default) {
+                val spiralCenter = state.spiralCenter
+                if (state.mode == PatrolMode.SPIRAL && spiralCenter != null) {
+                    val route = SpiralRoute(spiralCenter, lineWidthM = state.spiralLineWidthM, spacingM = state.spiralSpacingM)
+                    val plan = route.nextPlan()
+                    listOf(GeoPoint(spiralCenter.lat, spiralCenter.lon)) + plan.segments.map { GeoPoint(it.to.lat, it.to.lon) }
+                } else plannedRoute(waypoints, home)
+            }
             if (generation == overlayGeneration && route.isNotEmpty()) {
                 overlays.rebuildStatic(waypoints, home, route)
             }
@@ -487,7 +611,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     private fun plannedRoute(waypoints: List<Waypoint>, home: LatLng?): List<GeoPoint> {
         if (waypoints.isEmpty()) return emptyList()
         val config = prefs.config()
-        val start = home ?: waypoints.first().latLng
+        val start = PatrolService.state.value.position ?: home ?: waypoints.first().latLng
         val plan = runCatching {
             PatrolPlanner.planLap(
                 start = start,
@@ -507,9 +631,18 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     override fun longPressHelper(p: GeoPoint?): Boolean {
         if (p == null) return false
-        WaypointDialogs.showEditor(this, prefs, null, p.latitude, p.longitude, store.load().size + 1) {
-            store.add(it)
-        }
+        val centerPosition = mapCenter()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dlg_map_actions)
+            .setItems(arrayOf(getString(R.string.action_jump_map_center), getString(R.string.action_jump_pressed), getString(R.string.action_add_flower))) { _, which ->
+                when (which) {
+                    0 -> jumpTo(centerPosition)
+                    1 -> jumpTo(LatLng(p.latitude, p.longitude))
+                    2 -> WaypointDialogs.showEditor(this, prefs, null, p.latitude, p.longitude, store.load().size + 1) { store.add(it) }
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
         return true
     }
 
@@ -531,8 +664,11 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     private fun render(state: PatrolState) {
         val home = state.home ?: prefs.customHome ?: prefs.home
-        if (home != currentHome) {
+        if (home != currentHome || renderedMode != state.mode || renderedSpiralCenter != state.spiralCenter || renderedSpiralWidth != state.spiralLineWidthM) {
             currentHome = home
+            renderedMode = state.mode
+            renderedSpiralCenter = state.spiralCenter
+            renderedSpiralWidth = state.spiralLineWidthM
             rebuildOverlays()
         }
         renderStatus(state)
@@ -541,6 +677,10 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         syncOverlay(state.phase)
         continueScanAfterStart(state.phase)
     }
+
+    private var renderedMode: PatrolMode? = null
+    private var renderedSpiralCenter: LatLng? = null
+    private var renderedSpiralWidth: Double? = null
 
     // ------------------------------------------------------------------ bird's-eye scan
 
@@ -805,7 +945,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     private fun renderStatus(state: PatrolState) {
-        binding.tvPhase.text = phaseText(state.phase)
+        binding.tvPhase.text = if (state.mode == PatrolMode.SPIRAL && state.phase == PatrolPhase.WALKING) getString(R.string.phase_spiral) else phaseText(state.phase)
 
         val lines = ArrayList<String>(6)
         val name = state.currentWaypointName
@@ -823,6 +963,11 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             lines += getString(R.string.status_target, name, distanceText(state.distanceToTargetM))
             if (state.homeIsCustom) lines += getString(R.string.status_home_custom, state.home.toString())
         }
+        state.position?.let { lines += getString(R.string.status_position, it.toString()) }
+        if (state.mode == PatrolMode.SPIRAL) {
+            lines += getString(R.string.status_spiral_radius, distanceText(state.spiralRadiusM))
+            lines += getString(R.string.status_spiral_width, distanceText(state.spiralLineWidthM), distanceText(state.spiralSpacingM))
+        }
         lines += getString(R.string.status_walked, distanceText(state.distanceWalkedM))
         lines += getString(R.string.status_session_steps, state.sessionSteps)
         lines += getString(R.string.status_today_steps, state.stepsWrittenToday)
@@ -836,11 +981,11 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     private fun renderButtons(phase: PatrolPhase) {
         val moving = phase == PatrolPhase.WALKING || phase == PatrolPhase.DWELLING || phase == PatrolPhase.MANUAL
-        show(binding.btnStart, phase == PatrolPhase.IDLE)
+        show(binding.btnStart, phase == PatrolPhase.IDLE || phase == PatrolPhase.HOLDING)
         show(binding.btnPause, moving)
         show(binding.btnResume, phase == PatrolPhase.PAUSED || phase == PatrolPhase.PARKED)
         binding.btnResume.setText(if (phase == PatrolPhase.PARKED) R.string.btn_resume_lap else R.string.btn_resume)
-        show(binding.btnHome, moving || phase == PatrolPhase.PAUSED)
+        show(binding.btnHome, PatrolService.state.value.home != null && (moving || phase == PatrolPhase.PAUSED || phase == PatrolPhase.HOLDING))
         // 停止 stays available while STARTING so a slow GPS fix can be aborted.
         show(binding.btnStop, phase != PatrolPhase.IDLE && phase != PatrolPhase.STOPPING)
     }
@@ -878,6 +1023,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             PatrolPhase.STOPPING -> R.string.phase_stopping
             PatrolPhase.PARKED -> R.string.phase_parked
             PatrolPhase.MANUAL -> R.string.phase_manual
+            PatrolPhase.HOLDING -> R.string.phase_holding
         }
     )
 
@@ -915,6 +1061,9 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         R.id.action_setup -> { startActivity(Intent(this, SetupActivity::class.java)); true }
         R.id.action_settings -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
         R.id.action_home -> { showHomeDialog(); true }
+        R.id.action_jump_coords -> { promptJumpCoords(); true }
+        R.id.action_spiral -> { startSpiral(); true }
+        R.id.action_map_provider -> { showMapProviderDialog(); true }
         R.id.action_import -> { importLauncher.launch(arrayOf(MIME_ANY)); true }
         R.id.action_export_json -> { exportJsonLauncher.launch(getString(R.string.export_json_filename)); true }
         R.id.action_export_gpx -> { exportGpxLauncher.launch(getString(R.string.export_gpx_filename)); true }
@@ -933,10 +1082,95 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     private fun addWaypointAtMapCenter() {
-        val center = binding.map.mapCenter
+        val center = mapCenter()
         WaypointDialogs.showEditor(
-            this, prefs, null, center.latitude, center.longitude, store.load().size + 1,
+            this, prefs, null, center.lat, center.lon, store.load().size + 1,
         ) { store.add(it) }
+    }
+
+    private fun showPatrolModeDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dlg_patrol_mode)
+            .setItems(arrayOf(getString(R.string.mode_waypoints), getString(R.string.mode_spiral))) { _, which ->
+                if (which == 0) startPatrol(0) else startSpiral()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun startSpiral() {
+        val input = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setSingleLine()
+            setText(prefs.spiralLineWidthM.toString())
+            setSelectAllOnFocus(true)
+        }
+        val pad = resources.getDimensionPixelSize(R.dimen.space_xl)
+        val column = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+            addView(android.widget.TextView(this@MainActivity).apply { setText(R.string.spiral_width_explanation) })
+            addView(input)
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.spiral_width_title)
+            .setView(column)
+            .setPositiveButton(R.string.btn_start, null)
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val width = input.text.toString().toDoubleOrNull()
+                if (width == null || !width.isFinite() || width !in 1.0..1000.0) {
+                    input.error = getString(R.string.spiral_width_invalid)
+                } else {
+                    prefs.spiralLineWidthM = width
+                    dialog.dismiss()
+                    launchSpiral()
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun launchSpiral() {
+        lifecycleScope.launch {
+            if (preflight(requireWaypoints = false)) PatrolService.startSpiral(this@MainActivity)
+        }
+    }
+
+    private fun jumpTo(position: LatLng) {
+        lifecycleScope.launch {
+            if (!preflight(requireWaypoints = false, checkHealth = false)) return@launch
+            PatrolService.teleport(this@MainActivity, position)
+            trail.clear()
+            trailLast = null
+            overlays.updateTrail(trail)
+            center(position)
+        }
+    }
+
+    private fun promptJumpCoords() {
+        val input = android.widget.EditText(this).apply {
+            setHint(R.string.jump_coords_hint)
+            setSingleLine()
+        }
+        val pad = resources.getDimensionPixelSize(R.dimen.space_xl)
+        val box = android.widget.FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.menu_jump_coords)
+            .setView(box)
+            .setPositiveButton(R.string.action_jump, null)
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val position = LatLng.parse(input.text.toString())
+                if (position == null) input.error = getString(R.string.jump_coords_invalid)
+                else { dialog.dismiss(); jumpTo(position) }
+            }
+        }
+        dialog.show()
     }
 
     // ------------------------------------------------------------------ custom home (家的位置)
@@ -959,8 +1193,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
                 else getString(R.string.dlg_home_msg_custom, custom.toString()),
             )
             .setPositiveButton(R.string.action_home_map_center) { _, _ ->
-                val c = binding.map.mapCenter
-                setCustomHome(LatLng(c.latitude, c.longitude))
+                setCustomHome(mapCenter())
             }
             .setNeutralButton(R.string.action_home_enter_coords) { _, _ -> promptHomeCoords() }
         if (custom != null) {
@@ -1084,10 +1317,10 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     // ------------------------------------------------------------------ pre-flight + start
 
     private fun startPatrol(startAtIndex: Int) {
-        if (PatrolService.isRunning) return
+        if (PatrolService.isRunning && PatrolService.state.value.phase != PatrolPhase.HOLDING) return
         // An unhandled checkpoint means the game is still parked at a crash point; a fresh start
         // would teleport it home. Route the user back to the resume choice instead.
-        if (PatrolCheckpoint.resumable(this) != null) {
+        if (!PatrolService.isRunning && PatrolCheckpoint.resumable(this) != null) {
             resumeDialogShown = false
             maybeOfferResume()
             return
@@ -1106,7 +1339,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     /** Runs every check in order, offering the fix for each. Returns false when the patrol must not start. */
-    private suspend fun preflight(): Boolean {
+    private suspend fun preflight(requireWaypoints: Boolean = true, checkHealth: Boolean = true): Boolean {
         // 1. Precise location — mandatory (the service captures "home" from the real GPS).
         if (!Permissions.hasFineLocation(this)) {
             val go = ask(R.string.dlg_need_location_title, R.string.dlg_need_location_msg, R.string.action_grant)
@@ -1135,13 +1368,13 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         }
 
         // 4. At least one Big Flower.
-        if (store.load().isEmpty()) {
+        if (requireWaypoints && store.load().isEmpty()) {
             ask(R.string.dlg_no_waypoints_title, R.string.dlg_no_waypoints_msg, R.string.action_ok, null)
             return false
         }
 
         // 5. Health Connect, only when step injection is on.
-        if (prefs.config().injectSteps) {
+        if (checkHealth && prefs.config().injectSteps) {
             if (!steps.isAvailable) {
                 return ask(
                     R.string.dlg_hc_unavailable_title, R.string.dlg_hc_unavailable_msg,

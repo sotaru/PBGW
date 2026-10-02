@@ -3,6 +3,7 @@ package app.pikminbloom.gps.service
 import android.content.Context
 import android.util.Log
 import app.pikminbloom.gps.data.PatrolPhase
+import app.pikminbloom.gps.data.PatrolMode
 import app.pikminbloom.gps.geo.LatLng
 import org.json.JSONObject
 import java.io.File
@@ -23,7 +24,7 @@ import java.io.File
 data class PatrolCheckpoint(
     val savedAtMs: Long,
     val startedAtMs: Long,
-    val home: LatLng,
+    val home: LatLng?,
     val position: LatLng,
     val routeId: String,
     val lap: Int,
@@ -37,14 +38,19 @@ data class PatrolCheckpoint(
     val distanceSinceFlush: Double,
     val stepsWrittenToday: Long,
     val lapsCompleted: Int,
+    val mode: PatrolMode = PatrolMode.WAYPOINTS,
+    val spiralCenter: LatLng? = null,
+    val spiralAngleRad: Double = 0.0,
+    val spiralSpacingM: Double = 40.0,
+    val spiralLineWidthM: Double = 40.0,
 ) {
     val ageMs: Long get() = System.currentTimeMillis() - savedAtMs
 
     fun toJson(): String = JSONObject()
-        .put("version", 1)
+        .put("version", 2)
         .put("savedAtMs", savedAtMs)
         .put("startedAtMs", startedAtMs)
-        .put("homeLat", home.lat).put("homeLon", home.lon)
+        .put("homeLat", home?.lat).put("homeLon", home?.lon)
         .put("posLat", position.lat).put("posLon", position.lon)
         .put("routeId", routeId)
         .put("lap", lap)
@@ -57,6 +63,11 @@ data class PatrolCheckpoint(
         .put("distanceSinceFlush", distanceSinceFlush)
         .put("stepsWrittenToday", stepsWrittenToday)
         .put("lapsCompleted", lapsCompleted)
+        .put("mode", mode.name)
+        .put("spiralLat", spiralCenter?.lat).put("spiralLon", spiralCenter?.lon)
+        .put("spiralAngleRad", spiralAngleRad)
+        .put("spiralSpacingM", spiralSpacingM)
+        .put("spiralLineWidthM", spiralLineWidthM)
         .toString()
 
     companion object {
@@ -71,7 +82,7 @@ data class PatrolCheckpoint(
             PatrolCheckpoint(
                 savedAtMs = o.getLong("savedAtMs"),
                 startedAtMs = o.optLong("startedAtMs", o.getLong("savedAtMs")),
-                home = LatLng(o.getDouble("homeLat"), o.getDouble("homeLon")),
+                home = if (o.has("homeLat") && o.has("homeLon")) LatLng(o.getDouble("homeLat"), o.getDouble("homeLon")) else null,
                 position = LatLng(o.getDouble("posLat"), o.getDouble("posLon")),
                 routeId = o.optString("routeId"),
                 lap = o.optInt("lap", 0),
@@ -84,6 +95,11 @@ data class PatrolCheckpoint(
                 distanceSinceFlush = o.optDouble("distanceSinceFlush", 0.0),
                 stepsWrittenToday = o.optLong("stepsWrittenToday", 0L),
                 lapsCompleted = o.optInt("lapsCompleted", 0),
+                mode = runCatching { PatrolMode.valueOf(o.optString("mode")) }.getOrDefault(PatrolMode.WAYPOINTS),
+                spiralCenter = if (o.has("spiralLat") && o.has("spiralLon")) LatLng(o.getDouble("spiralLat"), o.getDouble("spiralLon")) else null,
+                spiralAngleRad = o.optDouble("spiralAngleRad", 0.0),
+                spiralSpacingM = o.optDouble("spiralSpacingM", 40.0),
+                spiralLineWidthM = o.optDouble("spiralLineWidthM", 40.0),
             )
         }.getOrNull()
 

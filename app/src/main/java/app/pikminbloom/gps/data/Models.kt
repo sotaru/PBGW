@@ -63,6 +63,9 @@ enum class TravelMode(val speedKmh: Double, val countsSteps: Boolean, val label:
 
 enum class ReturnMode { WALK, TELEPORT }
 
+enum class PatrolMode { WAYPOINTS, SPIRAL, HOLD }
+enum class MapProvider { OPENSTREETMAP, GOOGLE }
+
 /** All tunables, persisted by Prefs. Defaults are chosen to look like a normal walk (~4.7 km/h). */
 data class PatrolConfig(
     val speedMps: Double = 1.3,
@@ -120,10 +123,17 @@ enum class PatrolPhase {
     PARKED,
     /** The floating joystick steers; the route is suspended and resumes from wherever this ends. */
     MANUAL,
+    /** A quick jump holds this position until another movement command or stop. */
+    HOLDING,
 }
 
 /** Snapshot published by PatrolService (StateFlow) for the UI and notification. */
 data class PatrolState(
+    val mode: PatrolMode = PatrolMode.WAYPOINTS,
+    val spiralCenter: LatLng? = null,
+    val spiralRadiusM: Double = 0.0,
+    val spiralLineWidthM: Double = 40.0,
+    val spiralSpacingM: Double = 44.0,
     val phase: PatrolPhase = PatrolPhase.IDLE,
     val position: LatLng? = null,
     val home: LatLng? = null,

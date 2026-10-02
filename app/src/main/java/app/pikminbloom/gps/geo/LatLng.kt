@@ -8,4 +8,14 @@ data class LatLng(val lat: Double, val lon: Double) {
     }
 
     override fun toString(): String = String.format(java.util.Locale.US, "%.6f,%.6f", lat, lon)
+
+    companion object {
+        fun parse(text: String): LatLng? {
+            val parts = text.trim().split(Regex("[,，;；\\s]+"))
+            if (parts.size != 2) return null
+            val lat = parts[0].toDoubleOrNull() ?: return null
+            val lon = parts[1].toDoubleOrNull() ?: return null
+            return runCatching { LatLng(lat, lon) }.getOrNull()
+        }
+    }
 }

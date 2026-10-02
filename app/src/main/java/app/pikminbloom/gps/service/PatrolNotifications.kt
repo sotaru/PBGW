@@ -32,6 +32,7 @@ class PatrolNotifications(private val ctx: Context) {
             PatrolPhase.STOPPING -> ctx.getString(R.string.svc_phase_stopping)
             PatrolPhase.PARKED -> ctx.getString(R.string.svc_phase_parked)
             PatrolPhase.MANUAL -> ctx.getString(R.string.svc_phase_manual)
+            PatrolPhase.HOLDING -> ctx.getString(R.string.phase_holding)
         }
         val vehicle = state.travelOverride?.let { " · ${it.label} ${it.speedKmh.toInt()} km/h" }.orEmpty()
         val text = ctx.getString(
@@ -56,7 +57,7 @@ class PatrolNotifications(private val ctx: Context) {
             PatrolPhase.WALKING, PatrolPhase.DWELLING, PatrolPhase.MANUAL -> b.addAction(0, ctx.getString(R.string.svc_action_pause), service(PatrolService.ACTION_PAUSE))
             else -> Unit
         }
-        if (state.phase != PatrolPhase.RETURNING_HOME && state.phase != PatrolPhase.STOPPING && state.phase != PatrolPhase.PARKED) {
+        if (state.home != null && state.phase != PatrolPhase.RETURNING_HOME && state.phase != PatrolPhase.STOPPING && state.phase != PatrolPhase.PARKED) {
             b.addAction(0, ctx.getString(R.string.svc_action_home), service(PatrolService.ACTION_RETURN_HOME))
         }
         b.addAction(0, ctx.getString(R.string.svc_action_stop), service(PatrolService.ACTION_STOP))

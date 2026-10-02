@@ -1,70 +1,134 @@
-# 皮克敏巡花助手（Pikmin Bloom GPS）
+# 皮克敏巡花助手（PBGW）
 
-專為 **Pikmin Bloom** 設計的單一目的輔助 App（非 root）：
+Android 模擬定位工具，可依大花路線巡邏、從目前位置向外繞圈，或直接跳到指定座標。也能依模擬步行距離換算步數，寫入 Health Connect。不需要 root 或 Shizuku，遊戲裡的操作仍需自己完成。
 
-1. **自動巡邏** — 在地圖上標記大花，App 以模擬走路依序巡邏，走到你按下「回家」為止。
-2. **巡邏時自動計步** — 依模擬距離換算步數寫入 Health Connect，讓遊戲培育花苗。
-3. **一鍵回家** — 走回你真實的 GPS 位置後自動解除模擬定位。
-4. **浮動控制列** — 懸浮在遊戲畫面上，不用切回本 App 就能暫停、回家、停止。
+目前版本：**1.2.1**。本專案位於 [sotaru/PBGW](https://github.com/sotaru/PBGW)，上游專案為 [SmailDot/Pikmin-Bloom-GPS](https://github.com/SmailDot/Pikmin-Bloom-GPS)。
 
-> 本專案源自 [lokey0905/POGO_Manager](https://github.com/lokey0905/POGO_Manager)，但原專案只是下載入口，
-> 不含任何定位或步數功能；這裡保留了建置骨架與主題，其餘完全重寫。設計文件見 [docs/PLAN.md](docs/PLAN.md)。
+> 提醒：模擬位置和步數不是實際運動紀錄，請勿拿來判斷健康狀況。這類操作可能違反遊戲規則，也可能影響帳號。本專案不保證遊戲會採計步數或帳號安全。
 
-## 需求
-- Android 9 (API 28) 以上；步數功能需 Android 14 以上（Health Connect 內建）。
-- 開發者選項 → **選擇模擬位置應用程式** → 皮克敏巡花助手。
+## 第一次使用
 
-## 設定步驟（App 內「初始設定」會逐項檢查）
+1. 在 App 的右上角選單開啟「初始設定」，依畫面完成定位權限等設定。
+2. 到 Android「開發者選項 → 選擇模擬位置應用程式」，選擇「皮克敏巡花助手」。
+3. 需要寫入步數時，允許本 App 讀寫 Health Connect 的步數與距離。不需要步數功能，也可以只使用模擬定位。
+4. 要在背景巡邏，請檢查電池最佳化與背景活動限制；浮動控制列則需要「顯示在其他 App 上層」權限。
+5. 要讓 Pikmin Bloom 讀取步數，請在遊戲「設定 → 隱私權與步數 → 步數」選擇 Health Connect，並允許遊戲讀取步數及在背景存取資料。不同版本的選單名稱可能稍有不同。
 
-1. 定位權限、通知權限。
-2. 開發者選項 → 選擇模擬位置應用程式 → 本 App。
-3. Health Connect 步數與距離讀寫權限。
-4. **⚠ Health Connect →「管理資料」→「資料來源與優先順序」→「新增資料來源」→ 選「皮克敏巡花助手」。**
-   這一步最容易漏。沒做的話步數寫得進去，但不會計入每日總計，遊戲讀不到。
-5. 電池最佳化排除（HyperOS 另需允許自啟動）。
-6. Pikmin Bloom 遊戲內：設定 → 隱私權&步數 → 步數 → **Health Connect**，
-   並在 Health Connect 中允許 Pikmin Bloom 讀取步數與「在背景存取資料」。
-   遊戲的定位權限設為「一律允許」。
+本 App 最低支援 Android 9。Health Connect 是否可用，還要看裝置與 Google Play 服務；Android 14 以上內建 Health Connect，較舊版本需另行安裝。不過，**Pikmin Bloom 使用 Health Connect 讀步數，需要 Android 14 以上**。詳見 [Android 官方說明](https://developer.android.com/health-and-fitness/health-connect/availability)與 [Pikmin Bloom 官方說明](https://niantic.helpshift.com/hc/en/23-pikmin-bloom/faq/4942-health-connect/?p=web)。
 
-> 「使用手機追蹤測量」模式讀的是硬體計步器，任何 App 都無法寫入，必須改用 Health Connect。
+## 地圖中央的小十字與直接跳轉
 
-## 使用流程
-1. 在地圖上**長按**加入大花，或用「搜尋附近候選點」自動帶入 OpenStreetMap 地標。
-2. 按「開始巡邏」→ 到遊戲內開啟種花。
-3. 抵達提醒出現時，到遊戲內點大花、往下滑領花蜜（每次開花每人一次）。
-4. 想結束時按「回家」，等位置走回真實位置後 App 會自動停止模擬。
+地圖中央有小十字準星，方便對準要跳轉的位置，不影響拖曳或長按。
 
-## 設定重點
-| 設定 | 建議 |
-|---|---|
-| 走路速度 | 4–12 km/h。上限 20，但遊戲約在 15–20 km/h 之間會停止種花。 |
-| 抵達後在大花圈內繞行 | 預設關閉。只有想衝某朵大花開花（300 朵）時才打開。 |
-| 步數步幅 | 70 公分。距離除以步幅換算步數。 |
-| 每日步數上限 | 50000。遊戲的花苗成長上限就是這個數字。 |
+長按地圖後，可以選擇：
 
-## 建置
-```bash
-./gradlew assembleDebug
-```
-APK 位於 `app/build/outputs/apk/debug/app-debug.apk`。需要 JDK 17+ 與 Android SDK（platform 37、build-tools 36+）。
+- **直接跳到地圖中央**：跳到準星對應的位置，不必先回家。
+- **直接跳到長按位置**：跳到手指長按的地方，與地圖中央是兩個不同選項。
+- **在長按位置新增大花**：把這個位置加入大花路線。
 
-以 adb 安裝並設定為模擬定位 App：
-```bash
-adb install -r -g app/build/outputs/apk/debug/app-debug.apk
-adb shell appops set app.pikminbloom.gps android:mock_location allow
-```
+也可以到右上角選單 →「快速跳轉座標」，輸入 `緯度, 經度`，例如 `25.0330, 121.5654`。緯度範圍為 −90～90，經度為 −180～180；輸入不正確時不會跳轉。
 
-## 不做的事
-- **不做遊戲畫面自動點擊**。Pikmin Bloom 是 Unity 畫面，對系統完全不透明（實測五個畫面的無障礙節點掃描結果完全相同，只有一個空白 SurfaceView），既無法定位大花也無法確認點擊成功；地圖鏡頭又可自由縮放旋轉平移且不會自動回正，盲點座標實測兩次全錯。加上自動點擊是可被獨立偵測的違規類別，報酬只有每朵花 1–3 花蜜，不值得。詳見 [docs/PLAN.md](docs/PLAN.md) 附錄 D。
-- 不需要 root / Shizuku。
-- 不做 Google Fit（API 已淘汰）。
+跳轉後會停止原本的移動，停留在新位置。**不會把新位置設成家，也不會修改原本的家（home）或自訂家。** 跳轉距離不算步數或行走距離。想從這裡繼續走，按「開始巡邏」選擇模式即可。
 
-## 大花位置從哪來
-Niantic 不公開大花座標，也沒有任何社群資料庫提供。大花長在 Wayspot 上，所以本 App 提供
-以 OpenStreetMap Overpass API 查詢附近地標（紀念物、公共藝術、廟宇教堂、遊戲場等）作為**候選點**，
-命中率約三到六成，留下真的有大花的即可。OpenStreetMap 資料為 ODbL，僅在再散布時需標註。
+## 蚊香巡邏：從目前位置向外繞圈
 
-## 免責聲明
-本 App 與 Niantic、Scopely、任天堂無任何關聯。修改定位與步數違反 Pikmin Bloom 使用條款（三振政策：
-警告 7 天 → 停權 30 天 → 永久停權），一切風險由使用者自行承擔。
-請保持合理速度，避免瞬移。
+按「開始巡邏」→ 選擇「蚊香巡邏」，或直接從右上角選單選「開始蚊香巡邏」。
+
+開始前可設定「線寬」，範圍為 **1～1000 公尺**，預設 40 公尺。App 會記住上次設定。
+
+線寬是每段行走路徑所涵蓋的寬度，**不是畫面上線條的粗細**。為了盡量避開走過的區域，相鄰圈會留出一些空隙：
+
+~~~text
+圈距 = 線寬 + max(3 公尺, 線寬的 10%)
+
+線寬 10 公尺 → 圈距 13 公尺
+線寬 40 公尺 → 圈距 44 公尺
+~~~
+
+巡邏以目前模擬位置為中心，像蚊香一樣一圈圈向外擴展；若還沒有模擬位置，會使用已設定的自訂家，或取得目前定位。這個模式不需要先加入大花，也不受大花路線的「一次巡邏」或自動回家圈數限制。
+
+主畫面會顯示目前半徑、線寬和圈距。可以隨時暫停、停止、回家或切換模式。起點附近、定位小幅變動或自行操控的路段仍可能重疊，不能保證完全不壓到原本的路線。
+
+## 大花路線、回家與停止
+
+- 長按地圖新增大花，再按「開始巡邏」選擇大花路線。
+- 支援循環、往返及一次巡邏，也可以設定抵達大花後是否在圈內繞行。
+- 一般巡邏可把起始真實位置記為家；如果設定了自訂家，回家後會停留在那裡，繼續維持模擬定位。
+- 「暫停」固定目前模擬位置；「繼續」接續移動。
+- 蚊香與跳轉停留模式可直接停止。大花路線停止時，可能會出現「先回家」或「直接停止」的選擇。
+- **停止會解除模擬定位**，遊戲或其他 App 可能立刻回到裝置的真實位置。
+- App 中斷後，若有 12 小時內的恢復紀錄，重新開啟會提供接續巡邏的選項。紀錄包含位置、巡邏模式及蚊香參數，但不是永久備份。
+
+地圖搜尋結果只是附近地標的候選位置，並不保證是遊戲裡的大花，仍需自己確認。本 App 不會自動點擊遊戲畫面。
+
+## Health Connect 步數
+
+預設步幅為 70 公分，每 60 秒寫入一次，每日寫入上限為 50,000 步。這些都是 **App 的設定值**，不是遊戲一定會採計的數字，可以在「設定」調整。
+
+1. **跨日會重新計算上限**：依裝置的本機日期計算，跨午夜的資料分成兩天，不必重開巡邏。
+2. **只計算步行部分**：車程不計步；同一秒從車程切回步行，也不會把車程尾段算進去。座標跳轉同樣不計步。
+3. **寫入失敗先保留**：送出前先把資料存到本機的待寫清單。權限不足、Health Connect 無法使用或寫入失敗時，已存好的資料不會因停止巡邏而丟掉。
+4. **之後會重試**：巡邏中定期重試；停止後，要等下次啟動巡邏才會重試。重試沿用同一筆資料的識別碼與內容，避免重複寫入。
+5. **上限仍會生效**：超過每日上限或每分鐘步數上限的部分不會補寫。關閉步數寫入後，也不會送出先前的待寫資料，直到重新啟用。
+
+待寫清單只留在這台裝置，不會隨系統備份移到別台裝置。正常更新 App 會保留資料；解除安裝或清除 App 資料則會移除。
+
+### 為什麼 App、Health Connect 和遊戲的步數不一樣？
+
+「本次步數」是 App 換算出的步數；「今日已寫入步數」是本 App 寫入 Health Connect 的紀錄，不是遊戲顯示的步數。
+
+Health Connect 會依資料來源的優先順序處理重疊紀錄，因此「有寫入」不等於「遊戲一定會增加」。若遊戲沒有增加，請檢查 Health Connect 的資料來源與優先順序、遊戲的步數授權及背景存取設定。詳見 [Android 官方說明](https://developer.android.com/health-and-fitness/health-connect/aggregate-data#aggregate-data-affected-by-user-selected-apps-priorities)。
+
+「設定 → 刪除本 App 今日寫入的步數」只刪除本 App 的 Health Connect 紀錄，不會刪除其他 App 的步數。
+
+## 切換 Google Maps
+
+右上角選單 →「切換地圖來源」，可選 OpenStreetMap 或 Google Maps。切換時會保留地圖中心、縮放、標記、路線及目前模擬位置。
+
+**目前沒有設定 Google Maps API 金鑰。** 選 Google Maps 時會出現提示，並繼續使用 OpenStreetMap；其他功能照常可用。設定金鑰後需重新建置、安裝，再切換地圖。裝置也需有可用的 Google Play 服務。
+
+申請與設定方式見 [Google Maps 設定說明](docs/GOOGLE_MAPS.md)。金鑰請放在不納入 Git 的 `secrets.properties`、`local.properties` 或建置環境變數，**不要上傳 GitHub**。
+
+## 建置與更新安裝
+
+使用 Android Studio 隨附的 Java 環境，準備 Android SDK platform 37、Build Tools 36.0.0 和 platform-tools。詳細步驟、簽章注意事項及多裝置操作，請看 [開發環境說明](docs/DEV_SETUP.md)。
+
+Windows PowerShell（Android Studio 使用預設安裝位置時）：
+
+~~~powershell
+$env:JAVA_HOME = 'C:/Program Files/Android/Android Studio/jbr'
+.\gradlew.bat assembleDebug testDebugUnitTest --console=plain
+~~~
+
+Linux／macOS（已設定 Java 與 Android SDK）：
+
+~~~bash
+./gradlew assembleDebug testDebugUnitTest --console=plain
+~~~
+
+APK 位置：`app/build/outputs/apk/debug/app-debug.apk`。
+
+更新前先暫停巡邏，讓恢復紀錄有時間保存。使用 ADB 更新：
+
+~~~powershell
+$adbPath = '<Android SDK 路徑>/platform-tools/adb.exe'
+& $adbPath devices -l
+& $adbPath -s '<裝置序號>' install -r app/build/outputs/apk/debug/app-debug.apk
+& $adbPath -s '<裝置序號>' shell am start --activity-clear-top -n app.pikminbloom.gps/.ui.MainActivity
+~~~
+
+`install -r` 在簽章相符時會保留原有資料，但不會自動完成 Health Connect 等特殊授權。換電腦後，debug 簽章可能不同；請先確認簽章，不要為了安裝而直接解除安裝，以免丟失設定與待寫資料。
+
+## 這版確認過哪些功能？
+
+- 129 項單元測試通過，包含圈距、座標輸入、跨日上限、待寫資料保存、重試去重及車程／步行交接。
+- 模擬器已確認跳轉、蚊香參數、暫停，以及寫入權限不足時，停止／重開仍保留同一筆待寫資料。
+- 已安裝到 Android 平板並確認可開啟；檢查時未向平板加入測試步數。
+- Google Maps 可編譯，缺少金鑰時的提示也已確認；**實際地圖載入仍要等設定金鑰後驗證**。
+- 跨午夜與失敗重試已有測試，但不代表已在所有裝置上做過長時間測試。
+
+版本差異見 [版本紀錄](CHANGELOG.md)。早期設計保留在 [PLAN.md](docs/PLAN.md)，目前操作以本 README 為準。
+
+## 使用風險
+
+本專案與 Pikmin Bloom 的營運商或任天堂無關，也不整合 Google Fit。使用前請自行確認遊戲規則、資料隱私及帳號風險。

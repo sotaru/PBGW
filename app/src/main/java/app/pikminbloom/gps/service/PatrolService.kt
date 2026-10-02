@@ -16,6 +16,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import app.pikminbloom.gps.R
 import app.pikminbloom.gps.data.PatrolConfig
+import app.pikminbloom.gps.data.PatrolMode
 import app.pikminbloom.gps.data.PatrolPhase
 import app.pikminbloom.gps.data.PatrolState
 import app.pikminbloom.gps.data.Prefs
@@ -31,9 +32,12 @@ import app.pikminbloom.gps.route.PatrolPlan
 import app.pikminbloom.gps.route.PatrolPlanner
 import app.pikminbloom.gps.route.RouteSegment
 import app.pikminbloom.gps.route.SegmentKind
+import app.pikminbloom.gps.route.SpiralRoute
 import app.pikminbloom.gps.sim.Sample
 import app.pikminbloom.gps.sim.WalkSimulator
 import app.pikminbloom.gps.steps.StepInjector
+import app.pikminbloom.gps.steps.StepFlushProgress
+import app.pikminbloom.gps.steps.StepWriteOutbox
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -51,6 +55,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.io.File
 import java.util.concurrent.Executors
 import kotlin.math.floor
 
@@ -82,6 +89,8 @@ class PatrolService : LifecycleService() {
     private var plan: PatrolPlan = PatrolPlan.EMPTY
     private var lap = 0
     private var home: LatLng? = null
+    private var mode = PatrolMode.WAYPOINTS
+    private var spiral: SpiralRoute? = null
 
     /** True when [home] is the user's chosen one: 回家 parks there instead of releasing the mock. */
     private var parkAtHome = false
@@ -103,6 +112,9 @@ class PatrolService : LifecycleService() {
     private var distanceSinceFlush = 0.0
     private var flushWindowStart: Instant = Instant.now()
     private var stepsWrittenToday = 0L
+    private var stepsDay = LocalDate.now()
+    private var lastStepFlushAttemptMs = 0L
+    private val stepOutbox by lazy { StepWriteOutbox(File(noBackupFilesDir, "step_outbox.json")) }
     private var settleTicks = 0
     private var lastArrivalAlertMs = 0L
     private var lastCheckpointMs = 0L
@@ -141,7 +153,7 @@ class PatrolService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         val action = intent?.action
-        if (action == ACTION_START) {
+        if (action == ACTION_START || action == ACTION_TELEPORT || action == ACTION_SPIRAL) {
             handleStart(intent)
             return START_NOT_STICKY
         }
@@ -171,6 +183,16 @@ class PatrolService : LifecycleService() {
     // ------------------------------------------------------------------ start
 
     private fun handleStart(intent: Intent) {
+        val requestedMode = when (intent.action) {
+            ACTION_TELEPORT -> PatrolMode.HOLD
+            ACTION_SPIRAL -> PatrolMode.SPIRAL
+            else -> PatrolMode.WAYPOINTS
+        }
+        val destination = if (requestedMode == PatrolMode.HOLD) runCatching {
+            require(intent.hasExtra(EXTRA_POSITION_LAT) && intent.hasExtra(EXTRA_POSITION_LON))
+            LatLng(intent.getDoubleExtra(EXTRA_POSITION_LAT, Double.NaN), intent.getDoubleExtra(EXTRA_POSITION_LON, Double.NaN))
+        }.getOrNull() else null
+        if (requestedMode == PatrolMode.HOLD && destination == null) { stopSelf(); return }
         // Location permission must exist before startForeground(type = location) on API 34+.
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             _state.update { it.copy(lastError = getString(R.string.svc_err_no_location_permission)) }
@@ -182,7 +204,13 @@ class PatrolService : LifecycleService() {
         // Always satisfy startForegroundService(), even for a duplicate start.
         if (!goForeground()) return
         if (state.value.phase != PatrolPhase.IDLE) {
-            Log.i(TAG, "start ignored: already ${state.value.phase}")
+            lifecycleScope.launch(engine) {
+                val phase = state.value.phase
+                if (phase == PatrolPhase.STARTING || phase == PatrolPhase.STOPPING || pendingFinish != null) return@launch
+                if (requestedMode == PatrolMode.WAYPOINTS && phase != PatrolPhase.HOLDING) return@launch
+                val from = destination ?: sim.current().position
+                selectMovement(requestedMode, from, intent.getIntExtra(EXTRA_START_AT_INDEX, 0))
+            }
             return
         }
         _state.value = PatrolState(phase = PatrolPhase.STARTING, mockAppSelected = mock.isMockAppSelected(), travelOverride = _travelOverride.value)
@@ -192,11 +220,12 @@ class PatrolService : LifecycleService() {
         // A fresh start removes the stale providers and takes a real fix, which is exactly the
         // crash-point -> real-position teleport a checkpoint exists to prevent. Refuse until the
         // user has chosen resume / go home / discard in the UI.
-        if (PatrolCheckpoint.resumable(this) != null) { failNow(getString(R.string.svc_err_checkpoint_pending)); return }
+        val checkpoint = PatrolCheckpoint.resumable(this)
+        if (checkpoint != null && requestedMode == PatrolMode.WAYPOINTS) { failNow(getString(R.string.svc_err_checkpoint_pending)); return }
 
         config = prefs.config()
         waypoints = store.load()
-        if (waypoints.isEmpty()) { failNow(getString(R.string.svc_err_no_waypoints)); return }
+        if (requestedMode == PatrolMode.WAYPOINTS && waypoints.isEmpty()) { failNow(getString(R.string.svc_err_no_waypoints)); return }
         if (!mock.isMockAppSelected()) { failNow(getString(R.string.svc_err_not_mock_app)); return }
 
         val overrideHome = if (intent.hasExtra(EXTRA_HOME_LAT) && intent.hasExtra(EXTRA_HOME_LON)) {
@@ -205,39 +234,46 @@ class PatrolService : LifecycleService() {
         // The user's chosen home (「待在日本」) wins over a real fix; an explicit override (debug
         // driver) wins over both but keeps the ordinary "release the mock at home" ending.
         val customHome = if (overrideHome == null) prefs.customHome else null
-        val startIndex = intent.getIntExtra(EXTRA_START_AT_INDEX, 0).coerceIn(0, waypoints.size - 1)
+        val startIndex = intent.getIntExtra(EXTRA_START_AT_INDEX, 0).coerceIn(0, (waypoints.size - 1).coerceAtLeast(0))
         acquireWakeLock()
 
         lifecycleScope.launch(engine) {
             try {
                 // A crashed/killed previous run may have left test providers installed; they would
                 // make every "real" fix look mocked, so clear them before capturing home.
-                mock.stop()
-                val h = overrideHome ?: customHome ?: mock.currentRealLocation(20_000)
+                val parked = if (requestedMode != PatrolMode.WAYPOINTS) mock.lastParkedMockFix() else null
+                if (requestedMode == PatrolMode.WAYPOINTS) mock.stop()
+                val real = if (requestedMode == PatrolMode.WAYPOINTS && overrideHome == null && customHome == null) {
+                    mock.currentRealLocation(20_000)
+                } else if (requestedMode != PatrolMode.WAYPOINTS && parked == null && checkpoint == null && customHome == null &&
+                    (requestedMode == PatrolMode.SPIRAL || prefs.home == null)) {
+                    mock.currentRealLocation(if (destination != null) 1_000 else 20_000)
+                } else null
+                val h = if (requestedMode == PatrolMode.WAYPOINTS) overrideHome ?: customHome ?: real
+                    else checkpoint?.home ?: customHome ?: prefs.home ?: real
+                val from = destination ?: parked ?: checkpoint?.position ?: customHome ?: real ?: h
                 if (stopRequested) { failNow(getString(R.string.svc_phase_stopping), silent = true); return@launch }
-                if (h == null) { failNow(getString(R.string.svc_err_no_home)); return@launch }
+                if (from == null) { failNow(getString(R.string.svc_err_no_home)); return@launch }
                 home = h
                 parkAtHome = customHome != null
-                prefs.home = h
+                if (h != null && requestedMode == PatrolMode.WAYPOINTS) prefs.home = h
                 stepsWrittenToday = if (config.injectSteps && steps.isAvailable) steps.stepsWrittenByUsToday() else 0L
                 if (stopRequested) { failNow(getString(R.string.svc_phase_stopping), silent = true); return@launch }
-                mock.start(config)   // throws MockNotAllowedException
+                mock.start(config, keepExisting = requestedMode != PatrolMode.WAYPOINTS)
                 sim = WalkSimulator(config).also { it.travelOverride = _travelOverride.value }
                 lap = 0
                 stepsAccrued = 0.0; stepsFlushed = 0; distanceSinceFlush = 0.0
                 flushWindowStart = Instant.now()
-                loadLap(h, startIndex)
                 _state.update {
                     it.copy(
-                        phase = if (plan.isEmpty) PatrolPhase.WALKING else phaseFor(plan.segments[0].kind),
-                        home = h, position = h, startedAtMs = System.currentTimeMillis(),
+                        home = h, position = from, startedAtMs = System.currentTimeMillis(),
                         stepsWrittenToday = stepsWrittenToday, mockAppSelected = true,
                         healthConnectReady = steps.isAvailable, lastError = null,
-                        currentWaypointIndex = plan.segments.firstOrNull()?.waypointIndex ?: -1,
-                        currentWaypointName = plan.segments.firstOrNull()?.waypointIndex?.let { i -> waypoints.getOrNull(i)?.name },
                         homeIsCustom = parkAtHome,
                     )
                 }
+                selectMovement(requestedMode, from, startIndex)
+                maybeFlushSteps(force = true)
                 Log.i(TAG, "started at $h (custom home: $parkAtHome, override: ${_travelOverride.value})")
                 lastNotificationMs = 0
                 // The joystick may already be up (toggled before 開始); take it into account now.
@@ -250,6 +286,40 @@ class PatrolService : LifecycleService() {
                 failNow(t.message ?: "start failed")
             }
         }
+    }
+
+    /** Engine-only mode switch. Relocations never enter the distance/step accounting path. */
+    private fun selectMovement(nextMode: PatrolMode, from: LatLng, startIndex: Int = 0) {
+        if (nextMode == PatrolMode.WAYPOINTS && waypoints.isEmpty()) return
+        mode = nextMode
+        spiral = if (mode == PatrolMode.SPIRAL) SpiralRoute(from, lineWidthM = prefs.spiralLineWidthM) else null
+        replanPending = false
+        doneThisLap.clear()
+        _joystick.value = JoystickInput()
+        sim.relocate(from)
+        when (mode) {
+            PatrolMode.HOLD -> { plan = PatrolPlan.EMPTY; planWaypoints = emptyList() }
+            PatrolMode.SPIRAL -> loadPlan(spiral!!.nextPlan(from))
+            PatrolMode.WAYPOINTS -> { lap = 0; loadLap(from, startIndex.coerceIn(0, waypoints.lastIndex)) }
+        }
+        mock.pushRaw(from, altitudeM = config.altitudeM)
+        val first = plan.segments.firstOrNull()
+        _state.update {
+            it.copy(mode = mode, phase = if (mode == PatrolMode.HOLD) PatrolPhase.HOLDING else phaseFor(first?.kind ?: SegmentKind.TRAVEL),
+                position = from, speedMps = 0.0, spiralCenter = spiral?.center, spiralRadiusM = 0.0,
+                spiralLineWidthM = spiral?.lineWidthM ?: prefs.spiralLineWidthM,
+                spiralSpacingM = spiral?.spacingM ?: SpiralRoute.spacingForWidth(prefs.spiralLineWidthM),
+                currentWaypointIndex = first?.waypointIndex ?: -1,
+                currentWaypointName = when (mode) {
+                    PatrolMode.HOLD -> getString(R.string.target_hold)
+                    PatrolMode.SPIRAL -> getString(R.string.target_spiral)
+                    PatrolMode.WAYPOINTS -> first?.waypointIndex?.let { i -> waypoints.getOrNull(i)?.name }
+                }, distanceToTargetM = 0.0, lastError = null)
+        }
+        lastTickElapsedMs = SystemClock.elapsedRealtime()
+        lastNotificationMs = 0
+        writeCheckpoint()
+        Log.i(TAG, "movement=$mode at $from, home=$home")
     }
 
     // ------------------------------------------------------------------ resume after a process death
@@ -297,8 +367,7 @@ class PatrolService : LifecycleService() {
 
                 home = cp.home
                 // A session that started from the chosen home still parks there at the end.
-                parkAtHome = prefs.customHome?.let { GeoMath.distanceM(it, cp.home) < 1.0 } ?: false
-                prefs.home = cp.home
+                parkAtHome = cp.home?.let { h -> prefs.customHome?.let { GeoMath.distanceM(it, h) < 1.0 } } ?: false
                 sim = WalkSimulator(config).also { it.travelOverride = _travelOverride.value }
                 lap = cp.lap
                 stepsAccrued = cp.stepsAccrued
@@ -306,13 +375,33 @@ class PatrolService : LifecycleService() {
                 distanceSinceFlush = cp.distanceSinceFlush
                 flushWindowStart = Instant.ofEpochMilli(cp.flushWindowStartMs)
                 stepsWrittenToday = cp.stepsWrittenToday
+                // A kill may have happened after the durable outbox commit but before the checkpoint.
+                stepOutbox.progress?.takeIf { it.sessionId == cp.startedAtMs && it.flushed > stepsFlushed }?.let {
+                    stepsAccrued = maxOf(stepsAccrued, it.accrued)
+                    stepsFlushed = it.flushed
+                    distanceSinceFlush = 0.0
+                    flushWindowStart = Instant.ofEpochMilli(it.endMs)
+                }
                 lastArrivalAlertMs = 0L
                 doneThisLap.clear()
 
-                val goHome = thenReturnHome || cp.phase == PatrolPhase.RETURNING_HOME || cp.phase == PatrolPhase.PARKED || waypoints.isEmpty()
+                mode = cp.mode
+                spiral = if (mode == PatrolMode.SPIRAL && cp.spiralCenter != null) {
+                    SpiralRoute(cp.spiralCenter, lineWidthM = cp.spiralLineWidthM, angleRad = cp.spiralAngleRad, spacingM = cp.spiralSpacingM)
+                } else null
+                val goHome = cp.home != null && (thenReturnHome || cp.phase == PatrolPhase.RETURNING_HOME || cp.phase == PatrolPhase.PARKED ||
+                    (mode == PatrolMode.WAYPOINTS && waypoints.isEmpty()))
+                val hold = !goHome && (mode == PatrolMode.HOLD || (mode == PatrolMode.WAYPOINTS && waypoints.isEmpty()))
                 if (goHome) {
-                    loadPlan(PatrolPlanner.planReturnHome(resumeAt, cp.home, routeTravelMode.takeIf { it != TravelMode.WALK }))
+                    loadPlan(PatrolPlanner.planReturnHome(resumeAt, cp.home!!, routeTravelMode.takeIf { it != TravelMode.WALK }))
                     settleTicks = 0
+                } else if (hold) {
+                    mode = PatrolMode.HOLD
+                    plan = PatrolPlan.EMPTY
+                    sim.relocate(resumeAt)
+                } else if (mode == PatrolMode.SPIRAL) {
+                    if (spiral == null) spiral = SpiralRoute(resumeAt, lineWidthM = prefs.spiralLineWidthM)
+                    loadPlan(spiral!!.nextPlan(resumeAt))
                 } else {
                     // Continue with the remaining waypoints of the interrupted lap, from where we are.
                     val order = PatrolPlanner.orderFor(lap, waypoints.size, config.loopMode)
@@ -324,14 +413,28 @@ class PatrolService : LifecycleService() {
 
                 _state.update {
                     it.copy(
-                        phase = if (goHome) PatrolPhase.RETURNING_HOME else phaseFor(plan.segments.firstOrNull()?.kind ?: SegmentKind.TRAVEL),
+                        phase = when {
+                            goHome -> PatrolPhase.RETURNING_HOME
+                            hold -> PatrolPhase.HOLDING
+                            cp.phase == PatrolPhase.PAUSED -> PatrolPhase.PAUSED
+                            else -> phaseFor(plan.segments.firstOrNull()?.kind ?: SegmentKind.TRAVEL)
+                        },
+                        mode = mode, spiralCenter = spiral?.center,
+                        spiralLineWidthM = spiral?.lineWidthM ?: prefs.spiralLineWidthM,
+                        spiralSpacingM = spiral?.spacingM ?: SpiralRoute.spacingForWidth(prefs.spiralLineWidthM),
+                        spiralRadiusM = spiral?.let { GeoMath.distanceM(it.center, resumeAt) } ?: 0.0,
                         home = cp.home, position = resumeAt, startedAtMs = cp.startedAtMs,
                         distanceWalkedM = cp.distanceWalkedM, sessionSteps = floor(stepsAccrued).toLong(),
                         stepsWrittenToday = stepsWrittenToday, lapsCompleted = cp.lapsCompleted,
                         mockAppSelected = true, healthConnectReady = steps.isAvailable, lastError = null,
-                        currentWaypointIndex = if (goHome) -1 else cp.targetWaypointIndex,
-                        currentWaypointName = if (goHome) getString(R.string.svc_target_home) else waypoints.getOrNull(cp.targetWaypointIndex)?.name,
-                        distanceToTargetM = if (goHome) GeoMath.distanceM(resumeAt, cp.home) else 0.0,
+                        currentWaypointIndex = if (goHome || mode != PatrolMode.WAYPOINTS) -1 else cp.targetWaypointIndex,
+                        currentWaypointName = when {
+                            goHome -> getString(R.string.svc_target_home)
+                            hold -> getString(R.string.target_hold)
+                            mode == PatrolMode.SPIRAL -> getString(R.string.target_spiral)
+                            else -> waypoints.getOrNull(cp.targetWaypointIndex)?.name
+                        },
+                        distanceToTargetM = if (goHome) GeoMath.distanceM(resumeAt, cp.home!!) else 0.0,
                         homeIsCustom = parkAtHome,
                     )
                 }
@@ -351,7 +454,7 @@ class PatrolService : LifecycleService() {
     /** Snapshot of everything a resume needs. Engine thread only. */
     private fun writeCheckpoint() {
         val s = state.value
-        val h = home ?: return
+        val h = home
         val p = s.position ?: return
         if (s.phase == PatrolPhase.IDLE || s.phase == PatrolPhase.STOPPING || s.phase == PatrolPhase.STARTING) return
         PatrolCheckpoint.save(
@@ -372,6 +475,11 @@ class PatrolService : LifecycleService() {
                 distanceSinceFlush = distanceSinceFlush,
                 stepsWrittenToday = stepsWrittenToday,
                 lapsCompleted = s.lapsCompleted,
+                mode = mode,
+                spiralCenter = spiral?.center,
+                spiralAngleRad = spiral?.angleAt(sim.exactCurrentPosition()) ?: 0.0,
+                spiralSpacingM = spiral?.spacingM ?: SpiralRoute.spacingForWidth(prefs.spiralLineWidthM),
+                spiralLineWidthM = spiral?.lineWidthM ?: prefs.spiralLineWidthM,
             ),
         )
     }
@@ -459,7 +567,7 @@ class PatrolService : LifecycleService() {
         lastTickElapsedMs = nowMs
 
         when (state.value.phase) {
-            PatrolPhase.PAUSED -> mock.push(sim.current())
+            PatrolPhase.PAUSED, PatrolPhase.HOLDING -> mock.push(sim.current())
             PatrolPhase.PARKED -> {
                 // Keep the game fed with fixes at home; a silent provider reads as "GPS lost".
                 val h = home ?: run { pendingFinish = Finish.Stop; return }
@@ -483,6 +591,7 @@ class PatrolService : LifecycleService() {
                         currentWaypointIndex = s.waypointIndex ?: it.currentWaypointIndex,
                         currentWaypointName = s.waypointIndex?.let { i -> waypoints.getOrNull(i)?.name } ?: it.currentWaypointName,
                         distanceToTargetM = distanceToTarget(s),
+                        spiralRadiusM = spiral?.let { route -> GeoMath.distanceM(route.center, s.position) } ?: 0.0,
                     )
                 }
                 if (s.lapFinished) {
@@ -542,8 +651,13 @@ class PatrolService : LifecycleService() {
     }
 
     private suspend fun runFinish(finish: Finish) {
+        writeCheckpoint()
         _state.update { it.copy(phase = PatrolPhase.STOPPING) }
-        runCatching { maybeFlushSteps(force = true) }.onFailure { Log.w(TAG, "final flush failed", it) }
+        var preserveCheckpoint = false
+        runCatching { maybeFlushSteps(force = true) }.onFailure {
+            preserveCheckpoint = true
+            Log.w(TAG, "final flush failed; keeping checkpoint", it)
+        }
         mock.stop()
         when (finish) {
             Finish.ReturnedHome -> {
@@ -553,15 +667,16 @@ class PatrolService : LifecycleService() {
             Finish.Stop -> _events.tryEmit(PatrolEvent.Stopped)
             is Finish.Failed -> { _events.tryEmit(PatrolEvent.Error(finish.message)); notifications.error(finish.message) }
         }
-        withContext(Dispatchers.Main) { teardown((finish as? Finish.Failed)?.message) }
+        val healthError = if (preserveCheckpoint || runCatching { stepOutbox.hasPending }.getOrDefault(true)) getString(R.string.steps_pending_retry) else null
+        withContext(Dispatchers.Main) { teardown((finish as? Finish.Failed)?.message ?: healthError, preserveCheckpoint) }
     }
 
     private fun account(s: Sample) {
         if (s.distanceDeltaM <= 0.0) return
         // Vehicle legs move the position but produce no steps; nobody walks while driving.
-        if (s.countsSteps) {
-            stepsAccrued += s.distanceDeltaM / config.strideM
-            distanceSinceFlush += s.distanceDeltaM
+        if (s.stepDistanceDeltaM > 0.0) {
+            stepsAccrued += s.stepDistanceDeltaM / config.strideM
+            distanceSinceFlush += s.stepDistanceDeltaM
         }
         _state.update {
             it.copy(distanceWalkedM = it.distanceWalkedM + s.distanceDeltaM, sessionSteps = floor(stepsAccrued).toLong())
@@ -601,6 +716,10 @@ class PatrolService : LifecycleService() {
     }
 
     private fun onLapFinished(s: Sample) {
+        if (mode == PatrolMode.SPIRAL) {
+            loadPlan(spiral!!.nextPlan(sim.exactCurrentPosition()))
+            return
+        }
         val finishedLap = lap
         val completed = finishedLap + 1
         _events.tryEmit(PatrolEvent.LapFinished(finishedLap))
@@ -650,6 +769,7 @@ class PatrolService : LifecycleService() {
     private fun onWaypointsChanged(list: List<Waypoint>) {
         val previous = waypoints
         waypoints = list
+        if (mode != PatrolMode.WAYPOINTS) return
         val p = state.value.phase
         if (p != PatrolPhase.WALKING && p != PatrolPhase.DWELLING && p != PatrolPhase.PAUSED) return
         if (list == previous) return
@@ -739,6 +859,10 @@ class PatrolService : LifecycleService() {
     private fun goToWaypoint(index: Int) {
         val p = state.value.phase
         if (index !in waypoints.indices) return
+        if (mode != PatrolMode.WAYPOINTS && p != PatrolPhase.STARTING && p != PatrolPhase.STOPPING) {
+            selectMovement(PatrolMode.WAYPOINTS, sim.current().position, index)
+            return
+        }
         when (p) {
             PatrolPhase.WALKING, PatrolPhase.DWELLING, PatrolPhase.PAUSED -> {
                 doneThisLap.remove(waypoints[index].id)
@@ -787,7 +911,7 @@ class PatrolService : LifecycleService() {
     private fun onJoystickToggled(enabled: Boolean) {
         val p = state.value.phase
         if (enabled) {
-            if (p == PatrolPhase.WALKING || p == PatrolPhase.DWELLING || p == PatrolPhase.PARKED) enterManual()
+            if (p == PatrolPhase.WALKING || p == PatrolPhase.DWELLING || p == PatrolPhase.PARKED || p == PatrolPhase.HOLDING) enterManual()
             // PAUSED keeps its frozen position; 繼續 goes to MANUAL because the joystick is up.
         } else if (p == PatrolPhase.MANUAL) {
             leaveManual()
@@ -804,6 +928,10 @@ class PatrolService : LifecycleService() {
     }
 
     private fun leaveManual() {
+        if (mode != PatrolMode.WAYPOINTS) {
+            selectMovement(mode, sim.current().position)
+            return
+        }
         if (waypoints.isEmpty()) { beginReturnHome(); return }
         // Whatever was visited stays visited; the rest of the lap continues from here.
         val cur = sim.current()
@@ -829,37 +957,48 @@ class PatrolService : LifecycleService() {
 
     private suspend fun maybeFlushSteps(force: Boolean) {
         val now = Instant.now()
-        val windowSec = Duration.between(flushWindowStart, now).seconds
-        if (!force && windowSec < config.stepFlushIntervalSec) return
+        val elapsed = SystemClock.elapsedRealtime()
+        val today = LocalDate.now()
+        if (!force && today == stepsDay && elapsed - lastStepFlushAttemptMs < config.stepFlushIntervalSec * 1000L) return
+        lastStepFlushAttemptMs = elapsed
         val pending = floor(stepsAccrued).toLong() - stepsFlushed
-        if (pending <= 0) { flushWindowStart = now; distanceSinceFlush = 0.0; return }
-
-        if (!config.injectSteps || !steps.isAvailable) {
-            stepsFlushed += pending; flushWindowStart = now; distanceSinceFlush = 0.0; return
-        }
-        val room = (config.dailyStepCap - stepsWrittenToday).coerceAtLeast(0)
-        // Keep the cadence humanly plausible if the user asked for a ceiling.
-        val cadenceRoom = if (config.maxCadenceSpm > 0) {
-            (config.maxCadenceSpm * windowSec / 60.0).toLong().coerceAtLeast(1)
-        } else {
-            Long.MAX_VALUE
-        }
-        val toWrite = minOf(pending, room, cadenceRoom)
-        if (toWrite < pending) {
-            Log.i(TAG, "writing $toWrite of $pending steps (daily room $room, cadence room $cadenceRoom)")
-        }
-        val distance = distanceSinceFlush * (toWrite.toDouble() / pending)
-        val ok = if (toWrite > 0) steps.write(flushWindowStart, now, toWrite, distance) else true
-        if (ok) {
-            stepsWrittenToday += toWrite
-            stepsFlushed += pending           // steps beyond the daily cap are dropped on purpose
+        if (pending > 0) {
+            val start = if (flushWindowStart < now) flushWindowStart else now.minusMillis(1)
+            val windowSec = Duration.between(start, now).seconds
+            val cadenceRoom = if (config.maxCadenceSpm > 0) {
+                (config.maxCadenceSpm * windowSec / 60.0).toLong().coerceAtLeast(1)
+            } else Long.MAX_VALUE
+            val count = if (config.injectSteps) minOf(pending, cadenceRoom) else 0L
+            val windows = StepWriteOutbox.windows("${state.value.startedAtMs}-${start.toEpochMilli()}",
+                start, now, count, distanceSinceFlush * (count.toDouble() / pending), ZoneId.systemDefault())
+            // Never consume steps until the complete window is safely stored, independent of route cleanup.
+            stepOutbox.enqueue(windows, StepFlushProgress(state.value.startedAtMs, stepsAccrued,
+                floor(stepsAccrued).toLong(), now.toEpochMilli()))
+            stepsFlushed += pending
             flushWindowStart = now
             distanceSinceFlush = 0.0
-            _state.update { it.copy(stepsWrittenToday = stepsWrittenToday) }
-            if (toWrite > 0) _events.tryEmit(PatrolEvent.StepsWritten(toWrite, stepsWrittenToday))
-        } else if (windowSec > 45 * 60) {
-            Log.w(TAG, "dropping $pending steps: Health Connect unavailable for ${windowSec}s")
-            stepsFlushed += pending; flushWindowStart = now; distanceSinceFlush = 0.0
+            writeCheckpoint()
+        } else {
+            flushWindowStart = now
+            distanceSinceFlush = 0.0
+        }
+        val completed = if (config.injectSteps && steps.isAvailable) {
+            stepOutbox.drain(config.dailyStepCap, steps::stepsWrittenByUsOn) { batch ->
+                steps.write(Instant.ofEpochMilli(batch.startMs), Instant.ofEpochMilli(batch.endMs),
+                    batch.acceptedSteps!!, batch.acceptedDistanceM, batch.id, batch.zone)
+            }
+        } else emptyList()
+        // Read the current LOCAL day, including after midnight, resume, or deleting records in Settings.
+        val current = if (config.injectSteps && steps.isAvailable) steps.stepsWrittenByUsOn(today, ZoneId.systemDefault()) else null
+        if (current != null) stepsWrittenToday = current
+        else if (today != stepsDay) stepsWrittenToday = 0L
+        stepsDay = today
+        val retryMessage = getString(R.string.steps_pending_retry)
+        _state.update { it.copy(stepsWrittenToday = stepsWrittenToday,
+            lastError = if (stepOutbox.hasPending && config.injectSteps) retryMessage
+                else it.lastError.takeUnless { error -> error == retryMessage }) }
+        completed.sumOf { it.acceptedSteps ?: 0L }.takeIf { it > 0 }?.let {
+            _events.tryEmit(PatrolEvent.StepsWritten(it, stepsWrittenToday))
         }
     }
 
@@ -880,6 +1019,7 @@ class PatrolService : LifecycleService() {
         } else if (!paused && p == PatrolPhase.PARKED) {
             // 繼續 from the custom home: another lap, from here.
             val h = home ?: return
+            if (mode != PatrolMode.WAYPOINTS) { selectMovement(mode, h); return }
             if (waypoints.isEmpty()) return
             if (_joystick.value.enabled) { enterManual(); return }
             loadLap(h)
@@ -912,7 +1052,7 @@ class PatrolService : LifecycleService() {
         val p = state.value.phase
         if (p == PatrolPhase.IDLE || p == PatrolPhase.RETURNING_HOME || p == PatrolPhase.STOPPING || p == PatrolPhase.PARKED) return
         if (p == PatrolPhase.STARTING) { requestStop(); return }
-        val h = home ?: run { requestStop(); return }
+        val h = home ?: run { _events.tryEmit(PatrolEvent.Error(getString(R.string.home_unknown))); return }
         if (p == PatrolPhase.MANUAL) _joystick.update { it.copy(enabled = false) }
         val from = sim.current().position
         settleTicks = 0
@@ -954,11 +1094,11 @@ class PatrolService : LifecycleService() {
         }
     }
 
-    private fun teardown(keepError: String? = null) {
+    private fun teardown(keepError: String? = null, preserveCheckpoint: Boolean = false) {
         releaseWakeLock()
         // Every path through here is a clean exit: the game is (or is about to be) on real GPS,
         // so there is nothing to resume from.
-        PatrolCheckpoint.clear(this)
+        if (!preserveCheckpoint) PatrolCheckpoint.clear(this)
         val last = state.value
         prefs.lastPosition = last.position
         // A vehicle is a one-session thing; the next patrol starts on foot. Same for the joystick.
@@ -1024,6 +1164,10 @@ class PatrolService : LifecycleService() {
         const val TAG = "PikminGPS"
         private const val PKG = "app.pikminbloom.gps"
         const val ACTION_START = "$PKG.action.START"
+        const val ACTION_TELEPORT = "$PKG.action.TELEPORT"
+        const val ACTION_SPIRAL = "$PKG.action.SPIRAL"
+        const val EXTRA_POSITION_LAT = "position_lat"
+        const val EXTRA_POSITION_LON = "position_lon"
         const val ACTION_PAUSE = "$PKG.action.PAUSE"
         const val ACTION_RESUME = "$PKG.action.RESUME"
         const val ACTION_RETURN_HOME = "$PKG.action.RETURN_HOME"
@@ -1100,6 +1244,15 @@ class PatrolService : LifecycleService() {
             val i = intent(context, ACTION_START).putExtra(EXTRA_START_AT_INDEX, startAtIndex)
             if (homeOverride != null) i.putExtra(EXTRA_HOME_LAT, homeOverride.lat).putExtra(EXTRA_HOME_LON, homeOverride.lon)
             ContextCompat.startForegroundService(context, i)
+        }
+
+        fun teleport(context: Context, position: LatLng) {
+            ContextCompat.startForegroundService(context, intent(context, ACTION_TELEPORT)
+                .putExtra(EXTRA_POSITION_LAT, position.lat).putExtra(EXTRA_POSITION_LON, position.lon))
+        }
+
+        fun startSpiral(context: Context) {
+            ContextCompat.startForegroundService(context, intent(context, ACTION_SPIRAL))
         }
 
         private fun send(context: Context, action: String, configure: (Intent.() -> Unit)? = null) {

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="steps_pending_retry">Health Connect 步數尚未寫入，已保留待寫資料；巡邏中會自動重試，停止後會在下次啟動巡邏時重試。</string>
+    <string name="dlg_map_actions">地圖操作</string>
+    <string name="action_jump_map_center">直接跳到地圖中央</string>
+    <string name="action_jump_pressed">直接跳到長按位置</string>
+    <string name="action_add_flower">在長按位置新增大花</string>
+    <string name="menu_jump_coords">快速跳轉座標</string>
+    <string name="action_jump">直接跳轉</string>
+    <string name="jump_coords_hint">緯度, 經度（例如 25.0330, 121.5654）</string>
+    <string name="jump_coords_invalid">請輸入緯度 -90～90、經度 -180～180，共兩個數值</string>
+    <string name="dlg_patrol_mode">選擇巡邏模式</string>
+    <string name="mode_waypoints">大花路線巡邏</string>
+    <string name="mode_spiral">蚊香巡邏（從目前座標向外繞圈）</string>
+    <string name="menu_spiral">開始蚊香巡邏</string>
+    <string name="target_spiral">蚊香巡邏</string>
+    <string name="target_hold">停留在跳轉位置</string>
+    <string name="phase_holding">停留中（模擬定位啟用）</string>
+    <string name="phase_spiral">蚊香巡邏中</string>
+    <string name="status_position">目前座標：%1$s</string>
+    <string name="status_spiral_radius">目前繞圈半徑：%1$s</string>
+    <string name="status_spiral_width">線寬：%1$s · 圈距：%2$s</string>
+    <string name="spiral_width_title">蚊香巡邏線寬（公尺）</string>
+    <string name="spiral_width_explanation">線寬代表每段行走覆蓋的寬度。相鄰圈會留出略大於線寬的間距，盡量避免壓到走過的區域。從目前座標開始，持續向外繞圈直到停止。</string>
+    <string name="spiral_width_invalid">請輸入 1～1000 公尺的線寬</string>
+    <string name="home_unknown">尚未取得 home</string>
+    <string name="menu_map_provider">切換地圖來源</string>
+    <string name="google_maps_not_ready">Google Maps 尚未設定</string>
+    <string name="google_maps_key_needed">尚未設定 Google Maps 金鑰，目前繼續使用 OpenStreetMap。完成金鑰設定並更新 App 後，即可切換為 Google Maps。</string>
+    <string name="google_maps_services_needed">Google Maps 無法啟動，請確認裝置的 Google Play 服務可用且已更新</string>
+</resources>

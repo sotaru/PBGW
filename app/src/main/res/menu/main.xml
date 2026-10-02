@@ -44,6 +44,10 @@
         android:title="@string/menu_home"
         app:showAsAction="never" />
 
+    <item android:id="@+id/action_jump_coords" android:title="@string/menu_jump_coords" app:showAsAction="never" />
+    <item android:id="@+id/action_spiral" android:title="@string/menu_spiral" app:showAsAction="never" />
+    <item android:id="@+id/action_map_provider" android:title="@string/menu_map_provider" app:showAsAction="never" />
+
     <item
         android:id="@+id/action_import"
         android:icon="@drawable/ic_import"

@@ -12,6 +12,14 @@ if (keystorePropsFile.exists()) {
     keystorePropsFile.withInputStream { keystoreProps.load(it) }
 }
 
+// Local-only key. Never commit credentials; builds without a key keep OpenStreetMap available.
+def mapsLocalProps = new Properties()
+def mapsLocalFile = rootProject.file('local.properties')
+if (mapsLocalFile.exists()) mapsLocalFile.withInputStream { mapsLocalProps.load(it) }
+def mapsSecretsFile = rootProject.file('secrets.properties')
+if (mapsSecretsFile.exists()) mapsSecretsFile.withInputStream { mapsLocalProps.load(it) }
+def mapsApiKey = mapsLocalProps.getProperty('MAPS_API_KEY', System.getenv('MAPS_API_KEY') ?: '').trim()
+
 android {
     signingConfigs {
         if (keystoreProps['storeFile']) {
@@ -31,8 +39,10 @@ android {
         applicationId "app.pikminbloom.gps"
         minSdk 28
         targetSdk 36
-        versionCode 2
-        versionName "1.2.0"
+        versionCode 3
+        versionName "1.2.1"
+        manifestPlaceholders = [mapsApiKey: mapsApiKey]
+        buildConfigField 'boolean', 'HAS_GOOGLE_MAPS_KEY', mapsApiKey ? 'true' : 'false'
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -83,6 +93,7 @@ dependencies {
 
     // Location: mock providers via LocationManager + Fused Location Provider mock mode
     implementation 'com.google.android.gms:play-services-location:21.3.0'
+    implementation 'com.google.android.gms:play-services-maps:20.0.0'
     // Health Connect: step / distance injection that Pikmin Bloom reads
     implementation 'androidx.health.connect:connect-client:1.1.0'
     // Map (OpenStreetMap, no API key)

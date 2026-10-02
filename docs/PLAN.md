@@ -2,6 +2,8 @@
 
 > 本文件同時是給人看的計畫，也是給實作代理 (implementation agents) 的任務書。API 名稱維持英文。
 
+> 這份文件保留早期設計與研究，部分環境和做法已經改變。目前的操作與限制請以 [README](../README.md)、[版本紀錄](../CHANGELOG.md) 和實際程式為準；開發交接請看 [DEV_SETUP](DEV_SETUP.md)。
+
 ## 0. 背景與結論
 
 - 原始 repo (lokey0905/POGO_Manager) 只是「下載入口 / 版本檢查」的管理器，本身**沒有** GPS 模擬與步數功能；Pikmin 相關功能全靠外部 App（GPS JoyStick、DeFit）。
