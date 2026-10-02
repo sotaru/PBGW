@@ -34,6 +34,7 @@ import app.pikminbloom.gps.route.RouteSegment
 import app.pikminbloom.gps.route.SegmentKind
 import app.pikminbloom.gps.route.SpiralRoute
 import app.pikminbloom.gps.sim.Sample
+import app.pikminbloom.gps.sim.ManualInputBuffer
 import app.pikminbloom.gps.sim.WalkSimulator
 import app.pikminbloom.gps.steps.StepInjector
 import app.pikminbloom.gps.steps.StepFlushProgress
@@ -42,7 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -53,6 +54,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -63,7 +65,7 @@ import kotlin.math.floor
 
 /**
  * Foreground service that runs the whole patrol: captures the real position ("home"), installs the
- * mock providers, ticks the [WalkSimulator] once a second, flushes steps to Health Connect and walks
+ * mock providers, ticks [WalkSimulator] once a second (100 ms in manual mode), flushes steps and walks
  * back home on request.
  *
  * Everything the user can change while walking is honoured live: settings (speed), the waypoint
@@ -302,6 +304,7 @@ class PatrolService : LifecycleService() {
         spiral = if (mode == PatrolMode.SPIRAL) SpiralRoute(from, lineWidthM = lineWidthM) else null
         replanPending = false
         doneThisLap.clear()
+        manualInput.stop()
         _joystick.value = JoystickInput()
         sim.relocate(from)
         when (mode) {
@@ -561,7 +564,10 @@ class PatrolService : LifecycleService() {
                     _state.update { it.copy(lastError = t.message) }
                 }
                 if (pendingFinish != null) break
-                delay(config.tickMs)
+                // Manual motion is responsive; ordinary patrols keep their existing GPS cadence.
+                withTimeoutOrNull(if (state.value.phase == PatrolPhase.MANUAL) MANUAL_TICK_MS else config.tickMs) {
+                    manualWake.receive()
+                }
             }
             val finish = pendingFinish ?: return@launch
             withContext(NonCancellable) { runFinish(finish) }
@@ -581,11 +587,7 @@ class PatrolService : LifecycleService() {
                 mock.pushRaw(h, accuracyM = 5f, altitudeM = config.altitudeM)
             }
             PatrolPhase.MANUAL -> {
-                val j = _joystick.value
-                val s = sim.advanceManual(dt, j.bearingDeg, if (j.enabled) j.magnitude else 0.0)
-                mock.push(s)
-                account(s)
-                _state.update { it.copy(position = s.position, speedMps = s.speedMps, distanceToTargetM = 0.0) }
+                advanceManualTo(nowMs)
             }
             PatrolPhase.WALKING, PatrolPhase.DWELLING -> {
                 val s = sim.advance(dt)
@@ -637,6 +639,22 @@ class PatrolService : LifecycleService() {
         if (nowMs - lastCheckpointMs >= CHECKPOINT_INTERVAL_MS) {
             lastCheckpointMs = nowMs
             writeCheckpoint()
+        }
+    }
+
+    /** Apply each recorded direction for its real duration, not for a whole tick. */
+    private fun advanceManualTo(nowMs: Long) {
+        var last: Sample? = null
+        for (input in manualInput.consume(nowMs)) {
+            val sample = sim.advanceManual(input.durationMs / 1000.0, input.bearingDeg, input.magnitude)
+            account(sample)
+            last = sample
+        }
+        val sample = last ?: sim.current()
+        mock.push(sample)
+        _state.update {
+            it.copy(position = sample.position, speedMps = sample.speedMps, distanceToTargetM = 0.0,
+                spiralRadiusM = spiral?.let { route -> GeoMath.distanceM(route.center, sample.position) } ?: 0.0)
         }
     }
 
@@ -761,6 +779,7 @@ class PatrolService : LifecycleService() {
         if (state.value.phase == PatrolPhase.IDLE) return
         val fresh = prefs.config()
         if (fresh == config) return
+        if (state.value.phase == PatrolPhase.MANUAL) advanceManualTo(SystemClock.elapsedRealtime())
         val speedChanged = fresh.speedMps != config.speedMps
         config = fresh
         sim.updateConfig(fresh)
@@ -857,6 +876,7 @@ class PatrolService : LifecycleService() {
 
     /** Every plan goes through here so [planWaypoints] always matches [plan]. */
     private fun loadPlan(p: PatrolPlan) {
+        manualInput.stop()
         plan = p
         planWaypoints = waypoints
         sim.load(p)
@@ -877,7 +897,11 @@ class PatrolService : LifecycleService() {
             }
             PatrolPhase.PARKED, PatrolPhase.MANUAL -> {
                 // Leave the parking spot / the joystick and walk the lap starting at that flower.
-                if (p == PatrolPhase.MANUAL) _joystick.update { it.copy(enabled = false) }
+                if (p == PatrolPhase.MANUAL) {
+                    advanceManualTo(SystemClock.elapsedRealtime())
+                    manualInput.stop()
+                    _joystick.update { it.copy(enabled = false) }
+                }
                 doneThisLap.clear()
                 val order = PatrolPlanner.orderFor(lap, waypoints.size, config.loopMode)
                 val rest = listOf(index) + order.filter { it != index }
@@ -907,6 +931,7 @@ class PatrolService : LifecycleService() {
     }
 
     private fun applyTravelOverride(mode: TravelMode?, automatic: Boolean) {
+        if (state.value.phase == PatrolPhase.MANUAL) advanceManualTo(SystemClock.elapsedRealtime())
         sim.travelOverride = mode
         _state.update { it.copy(travelOverride = mode) }
         lastNotificationMs = 0
@@ -926,19 +951,25 @@ class PatrolService : LifecycleService() {
     }
 
     private fun enterManual() {
+        val input = _joystick.value
+        manualInput.start(SystemClock.elapsedRealtime(), input.bearingDeg, if (input.enabled) input.magnitude else 0.0)
         _state.update {
             it.copy(phase = PatrolPhase.MANUAL, currentWaypointIndex = -1,
                 currentWaypointName = getString(R.string.svc_target_joystick), distanceToTargetM = 0.0)
         }
         lastNotificationMs = 0
+        manualWake.trySend(Unit)
         Log.i(TAG, "joystick took over at ${sim.current().position}")
     }
 
     private fun leaveManual() {
+        if (state.value.phase == PatrolPhase.MANUAL) advanceManualTo(SystemClock.elapsedRealtime())
+        manualInput.stop()
         if (mode != PatrolMode.WAYPOINTS) {
             selectMovement(mode, sim.current().position)
             return
         }
+        lastTickElapsedMs = SystemClock.elapsedRealtime()
         if (waypoints.isEmpty()) { beginReturnHome(); return }
         // Whatever was visited stays visited; the rest of the lap continues from here.
         val cur = sim.current()
@@ -1014,6 +1045,8 @@ class PatrolService : LifecycleService() {
     private fun setPaused(paused: Boolean) {
         val p = state.value.phase
         if (paused && (p == PatrolPhase.WALKING || p == PatrolPhase.DWELLING || p == PatrolPhase.MANUAL)) {
+            if (p == PatrolPhase.MANUAL) advanceManualTo(SystemClock.elapsedRealtime())
+            manualInput.stop()
             _state.update { it.copy(phase = PatrolPhase.PAUSED, speedMps = 0.0) }
         } else if (!paused && p == PatrolPhase.PAUSED) {
             when {
@@ -1060,7 +1093,11 @@ class PatrolService : LifecycleService() {
         if (p == PatrolPhase.IDLE || p == PatrolPhase.RETURNING_HOME || p == PatrolPhase.STOPPING || p == PatrolPhase.PARKED) return
         if (p == PatrolPhase.STARTING) { requestStop(); return }
         val h = home ?: run { _events.tryEmit(PatrolEvent.Error(getString(R.string.home_unknown))); return }
-        if (p == PatrolPhase.MANUAL) _joystick.update { it.copy(enabled = false) }
+        if (p == PatrolPhase.MANUAL) {
+            advanceManualTo(SystemClock.elapsedRealtime())
+            manualInput.stop()
+            _joystick.update { it.copy(enabled = false) }
+        }
         val from = sim.current().position
         settleTicks = 0
         // A trip that was driven out is driven back: walking 20 km home would take hours, and the
@@ -1082,7 +1119,12 @@ class PatrolService : LifecycleService() {
             PatrolPhase.IDLE -> stopSelf()
             PatrolPhase.STARTING -> stopRequested = true      // start coroutine checks this at its next step
             PatrolPhase.STOPPING -> Unit
-            else -> if (pendingFinish == null) pendingFinish = Finish.Stop
+            else -> if (pendingFinish == null) {
+                if (state.value.phase == PatrolPhase.MANUAL) advanceManualTo(SystemClock.elapsedRealtime())
+                manualInput.stop()
+                pendingFinish = Finish.Stop
+                manualWake.trySend(Unit)
+            }
         }
     }
 
@@ -1102,6 +1144,7 @@ class PatrolService : LifecycleService() {
     }
 
     private fun teardown(keepError: String? = null, preserveCheckpoint: Boolean = false) {
+        manualInput.stop()
         releaseWakeLock()
         // Every path through here is a clean exit: the game is (or is about to be) on real GPS,
         // so there is nothing to resume from.
@@ -1152,6 +1195,7 @@ class PatrolService : LifecycleService() {
     }
 
     override fun onDestroy() {
+        manualInput.stop()
         tickJob?.cancel()
         prefs.sp.unregisterOnSharedPreferenceChangeListener(prefListener)
         if (state.value.phase != PatrolPhase.IDLE) {
@@ -1214,7 +1258,11 @@ class PatrolService : LifecycleService() {
         private val _travelOverride = MutableStateFlow<TravelMode?>(null)
         val travelOverride: StateFlow<TravelMode?> = _travelOverride
 
-        /** What the floating joystick reports; the engine reads it every tick while MANUAL. */
+        private const val MANUAL_TICK_MS = 100L
+        private val manualInput = ManualInputBuffer()
+        private val manualWake = Channel<Unit>(Channel.CONFLATED)
+
+        /** UI state; the timestamped buffer preserves brief gestures between engine ticks. */
         private val _joystick = MutableStateFlow(JoystickInput())
         val joystick: StateFlow<JoystickInput> = _joystick
 
@@ -1237,11 +1285,16 @@ class PatrolService : LifecycleService() {
 
         fun setJoystickEnabled(enabled: Boolean) {
             _joystick.update { if (enabled) it.copy(enabled = true) else JoystickInput() }
+            val input = _joystick.value
+            manualInput.update(SystemClock.elapsedRealtime(), input.bearingDeg, if (input.enabled) input.magnitude else 0.0)
         }
 
         /** Pad input; [magnitude] 0 = standing still. Only meaningful while enabled. */
         fun steer(bearingDeg: Double, magnitude: Double) {
-            _joystick.update { it.copy(bearingDeg = GeoMath.normalizeBearing(bearingDeg), magnitude = magnitude.coerceIn(0.0, 1.0)) }
+            val bearing = if (bearingDeg.isFinite()) GeoMath.normalizeBearing(bearingDeg) else 0.0
+            val amount = if (bearingDeg.isFinite() && magnitude.isFinite()) magnitude.coerceIn(0.0, 1.0) else 0.0
+            _joystick.update { it.copy(bearingDeg = bearing, magnitude = amount) }
+            manualInput.update(SystemClock.elapsedRealtime(), bearing, if (_joystick.value.enabled) amount else 0.0)
         }
 
         fun intent(context: Context, action: String): Intent =

@@ -44,8 +44,9 @@
     <!-- joystick -->
     <string name="label_joystick">搖桿</string>
     <string name="ovl_cd_joystick">搖桿</string>
-    <string name="toast_joystick_on">搖桿已開啟：往上＝北。關閉後會從目前位置接著走原路線</string>
-    <string name="toast_joystick_off">搖桿已關閉，接回路線</string>
+    <string name="toast_joystick_on">搖桿已開啟：往上是北，按住並拖曳圓盤即可移動，放開即停。</string>
+    <string name="toast_joystick_off">搖桿已關閉</string>
+    <string name="toast_joystick_paused">搖桿已開啟，目前仍在暫停中。請先按「繼續」，再操作搖桿。</string>
     <string name="toast_joystick_need_patrol">請先開始巡邏，搖桿才會生效</string>
     <string name="toast_joystick_need_overlay">搖桿顯示在浮動控制列上，請先開啟浮動控制列</string>
     <string name="snack_replanned">路線已更新，從目前位置接著走</string>

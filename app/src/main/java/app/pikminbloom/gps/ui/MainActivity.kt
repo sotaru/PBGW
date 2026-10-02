@@ -471,7 +471,11 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             }
             else -> {
                 OverlayService.showJoystick(this)
-                toast(getString(if (PatrolService.isRunning) R.string.toast_joystick_on else R.string.toast_joystick_need_patrol))
+                toast(getString(when {
+                    PatrolService.state.value.phase == PatrolPhase.PAUSED -> R.string.toast_joystick_paused
+                    PatrolService.isRunning -> R.string.toast_joystick_on
+                    else -> R.string.toast_joystick_need_patrol
+                }))
             }
         }
         // The checkable button flipped itself on the tap; the flow is the truth.

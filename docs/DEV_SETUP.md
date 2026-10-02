@@ -53,8 +53,9 @@ Linux／macOS（已設定 Java 與 Android SDK）：
 
 - Debug APK：`app/build/outputs/apk/debug/app-debug.apk`。
 - Release APK：執行 `assembleRelease`，輸出到 `app/build/outputs/apk/release/app-release.apk`。
-- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 4／1.2.2。
-- 1.2.2 有 134 項單元測試；之後新增測試，數量也會增加。
+- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 5／1.2.3。
+- 1.2.3 有 144 項單元測試；之後新增測試，數量也會增加。
+- 目前結果為 143 項通過、1 項略過。既有花朵辨識測試需要未納入 Git 的 `live_user5.png`，缺少這張本機圖片時會自動略過；不是搖桿測試失敗。
 
 ### 簽章要注意什麼？
 

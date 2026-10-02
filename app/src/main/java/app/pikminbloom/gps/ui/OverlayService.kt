@@ -248,7 +248,11 @@ class OverlayService : Service() {
         } else {
             if (!addJoystickWindow()) return
             PatrolService.setJoystickEnabled(true)
-            toast(if (PatrolService.isRunning) R.string.toast_joystick_on else R.string.toast_joystick_need_patrol)
+            toast(when {
+                PatrolService.state.value.phase == PatrolPhase.PAUSED -> R.string.toast_joystick_paused
+                PatrolService.isRunning -> R.string.toast_joystick_on
+                else -> R.string.toast_joystick_need_patrol
+            })
         }
         render(PatrolService.state.value)
     }
