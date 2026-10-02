@@ -53,8 +53,8 @@ Linux／macOS（已設定 Java 與 Android SDK）：
 
 - Debug APK：`app/build/outputs/apk/debug/app-debug.apk`。
 - Release APK：執行 `assembleRelease`，輸出到 `app/build/outputs/apk/release/app-release.apk`。
-- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 3／1.2.1。
-- 1.2.1 有 129 項單元測試；之後新增測試，數量也會增加。
+- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 4／1.2.2。
+- 1.2.2 有 134 項單元測試；之後新增測試，數量也會增加。
 
 ### 簽章要注意什麼？
 

@@ -1120,22 +1120,21 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             .create()
         dialog.setOnShowListener {
             dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val width = input.text.toString().toDoubleOrNull()
-                if (width == null || !width.isFinite() || width !in 1.0..1000.0) {
+                val width = SpiralRoute.parseLineWidth(input.text.toString())
+                if (width == null) {
                     input.error = getString(R.string.spiral_width_invalid)
                 } else {
-                    prefs.spiralLineWidthM = width
                     dialog.dismiss()
-                    launchSpiral()
+                    launchSpiral(width)
                 }
             }
         }
         dialog.show()
     }
 
-    private fun launchSpiral() {
+    private fun launchSpiral(lineWidthM: Double) {
         lifecycleScope.launch {
-            if (preflight(requireWaypoints = false)) PatrolService.startSpiral(this@MainActivity)
+            if (preflight(requireWaypoints = false)) PatrolService.startSpiral(this@MainActivity, lineWidthM)
         }
     }
 

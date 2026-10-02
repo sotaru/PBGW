@@ -188,6 +188,10 @@ class PatrolService : LifecycleService() {
             ACTION_SPIRAL -> PatrolMode.SPIRAL
             else -> PatrolMode.WAYPOINTS
         }
+        val requestedSpiralWidth = SpiralRoute.resolveLineWidth(
+            if (intent.hasExtra(EXTRA_SPIRAL_LINE_WIDTH)) intent.getDoubleExtra(EXTRA_SPIRAL_LINE_WIDTH, Double.NaN) else null,
+            prefs.spiralLineWidthM,
+        )
         val destination = if (requestedMode == PatrolMode.HOLD) runCatching {
             require(intent.hasExtra(EXTRA_POSITION_LAT) && intent.hasExtra(EXTRA_POSITION_LON))
             LatLng(intent.getDoubleExtra(EXTRA_POSITION_LAT, Double.NaN), intent.getDoubleExtra(EXTRA_POSITION_LON, Double.NaN))
@@ -209,7 +213,7 @@ class PatrolService : LifecycleService() {
                 if (phase == PatrolPhase.STARTING || phase == PatrolPhase.STOPPING || pendingFinish != null) return@launch
                 if (requestedMode == PatrolMode.WAYPOINTS && phase != PatrolPhase.HOLDING) return@launch
                 val from = destination ?: sim.current().position
-                selectMovement(requestedMode, from, intent.getIntExtra(EXTRA_START_AT_INDEX, 0))
+                selectMovement(requestedMode, from, intent.getIntExtra(EXTRA_START_AT_INDEX, 0), requestedSpiralWidth)
             }
             return
         }
@@ -272,7 +276,7 @@ class PatrolService : LifecycleService() {
                         homeIsCustom = parkAtHome,
                     )
                 }
-                selectMovement(requestedMode, from, startIndex)
+                selectMovement(requestedMode, from, startIndex, requestedSpiralWidth)
                 maybeFlushSteps(force = true)
                 Log.i(TAG, "started at $h (custom home: $parkAtHome, override: ${_travelOverride.value})")
                 lastNotificationMs = 0
@@ -289,10 +293,13 @@ class PatrolService : LifecycleService() {
     }
 
     /** Engine-only mode switch. Relocations never enter the distance/step accounting path. */
-    private fun selectMovement(nextMode: PatrolMode, from: LatLng, startIndex: Int = 0) {
+    private fun selectMovement(
+        nextMode: PatrolMode, from: LatLng, startIndex: Int = 0,
+        lineWidthM: Double = spiral?.lineWidthM ?: prefs.spiralLineWidthM,
+    ) {
         if (nextMode == PatrolMode.WAYPOINTS && waypoints.isEmpty()) return
         mode = nextMode
-        spiral = if (mode == PatrolMode.SPIRAL) SpiralRoute(from, lineWidthM = prefs.spiralLineWidthM) else null
+        spiral = if (mode == PatrolMode.SPIRAL) SpiralRoute(from, lineWidthM = lineWidthM) else null
         replanPending = false
         doneThisLap.clear()
         _joystick.value = JoystickInput()
@@ -1167,6 +1174,7 @@ class PatrolService : LifecycleService() {
         const val ACTION_TELEPORT = "$PKG.action.TELEPORT"
         const val ACTION_SPIRAL = "$PKG.action.SPIRAL"
         const val EXTRA_POSITION_LAT = "position_lat"
+        private const val EXTRA_SPIRAL_LINE_WIDTH = "spiral_line_width_m"
         const val EXTRA_POSITION_LON = "position_lon"
         const val ACTION_PAUSE = "$PKG.action.PAUSE"
         const val ACTION_RESUME = "$PKG.action.RESUME"
@@ -1251,8 +1259,10 @@ class PatrolService : LifecycleService() {
                 .putExtra(EXTRA_POSITION_LAT, position.lat).putExtra(EXTRA_POSITION_LON, position.lon))
         }
 
-        fun startSpiral(context: Context) {
-            ContextCompat.startForegroundService(context, intent(context, ACTION_SPIRAL))
+        fun startSpiral(context: Context, lineWidthM: Double? = null) {
+            val command = intent(context, ACTION_SPIRAL)
+            if (lineWidthM != null) command.putExtra(EXTRA_SPIRAL_LINE_WIDTH, lineWidthM)
+            ContextCompat.startForegroundService(context, command)
         }
 
         private fun send(context: Context, action: String, configure: (Intent.() -> Unit)? = null) {

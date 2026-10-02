@@ -18,6 +18,7 @@ import app.pikminbloom.gps.BuildConfig
 import app.pikminbloom.gps.R
 import app.pikminbloom.gps.data.Prefs
 import app.pikminbloom.gps.databinding.ActivitySettingsBinding
+import app.pikminbloom.gps.route.SpiralRoute
 import app.pikminbloom.gps.service.PatrolService
 import app.pikminbloom.gps.steps.StepInjector
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -67,6 +68,18 @@ class SettingsActivity : AppCompatActivity() {
             numeric(Prefs.KEY_STRIDE_CM, decimal = false, unit = R.string.fmt_cm, fallback = "70")
             numeric(Prefs.KEY_DEFAULT_RADIUS, decimal = true, unit = R.string.fmt_meter, fallback = "30")
             numeric(Prefs.KEY_DEFAULT_DWELL, decimal = false, unit = R.string.fmt_second, fallback = "120")
+            numeric(Prefs.KEY_SPIRAL_LINE_WIDTH, decimal = true, unit = R.string.fmt_meter, fallback = "40")
+            findPreference<EditTextPreference>(Prefs.KEY_SPIRAL_LINE_WIDTH)?.apply {
+                summaryProvider = Preference.SummaryProvider<EditTextPreference> { p ->
+                    val width = SpiralRoute.parseLineWidth(p.text) ?: SpiralRoute.DEFAULT_LINE_WIDTH_M
+                    getString(R.string.pref_spiral_width_summary, width.toString())
+                }
+                setOnPreferenceChangeListener { _, value ->
+                    val valid = SpiralRoute.parseLineWidth(value as? String) != null
+                    if (!valid) Toast.makeText(requireContext(), R.string.spiral_width_invalid, Toast.LENGTH_LONG).show()
+                    valid
+                }
+            }
             numeric(Prefs.KEY_STEP_FLUSH_SEC, decimal = false, unit = R.string.fmt_second, fallback = "60")
             numeric(Prefs.KEY_DAILY_STEP_CAP, decimal = false, unit = R.string.fmt_step, fallback = "50000")
             numeric(Prefs.KEY_ACC_MIN, decimal = true, unit = R.string.fmt_meter, fallback = "3")

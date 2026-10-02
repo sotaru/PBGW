@@ -46,6 +46,16 @@
             app:title="@string/pref_default_dwell_title" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/pref_cat_spiral">
+        <EditTextPreference
+            app:defaultValue="40"
+            app:key="spiral_line_width_m"
+            app:dialogMessage="@string/pref_spiral_width_help"
+            app:positiveButtonText="@string/action_ok"
+            app:negativeButtonText="@string/action_cancel"
+            app:title="@string/pref_spiral_width_title" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/pref_cat_steps">
 
         <SwitchPreferenceCompat

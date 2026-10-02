@@ -45,6 +45,15 @@ class SpiralRoute(
     companion object {
         const val DEFAULT_LINE_WIDTH_M = 40.0
         const val CHUNK_SEGMENTS = 128
+        fun parseLineWidth(text: String?): Double? = text?.trim()?.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it in 1.0..1000.0 }
+
+        /** A run's temporary choice takes precedence without changing the saved default. */
+        fun resolveLineWidth(requested: Double?, default: Double): Double =
+            requested?.takeIf { it.isFinite() && it in 1.0..1000.0 }
+                ?: default.takeIf { it.isFinite() && it in 1.0..1000.0 }
+                ?: DEFAULT_LINE_WIDTH_M
+
         fun spacingForWidth(widthM: Double): Double = widthM + maxOf(3.0, widthM * 0.10)
     }
 }

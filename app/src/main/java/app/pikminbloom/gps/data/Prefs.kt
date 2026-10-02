@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import app.pikminbloom.gps.geo.LatLng
+import app.pikminbloom.gps.route.SpiralRoute
 import app.pikminbloom.gps.vision.Calibration
 
 /**
@@ -75,8 +76,12 @@ class Prefs(context: Context) {
         set(value) = sp.edit { putString("map_provider", value.name) }
 
     var spiralLineWidthM: Double
-        get() = str("spiral_line_width_m", 40.0).coerceIn(1.0, 1000.0)
-        set(value) = sp.edit { putString("spiral_line_width_m", value.toString()) }
+        get() = SpiralRoute.parseLineWidth(sp.getString(KEY_SPIRAL_LINE_WIDTH, null))
+            ?: SpiralRoute.DEFAULT_LINE_WIDTH_M
+        set(value) {
+            require(SpiralRoute.parseLineWidth(value.toString()) != null)
+            sp.edit { putString(KEY_SPIRAL_LINE_WIDTH, value.toString()) }
+        }
 
     /**
      * A home the user chose on the map instead of where the phone really is (「我近期想要待在
@@ -217,6 +222,7 @@ class Prefs(context: Context) {
         const val KEY_MOCK_FUSED = "mock_fused"
         const val KEY_FLP_MOCK = "flp_mock_mode"
         const val KEY_DEFAULT_RADIUS = "default_radius_m"
+        const val KEY_SPIRAL_LINE_WIDTH = "spiral_line_width_m"
         const val KEY_DEFAULT_DWELL = "default_dwell_sec"
         const val KEY_HOME_LAT = "home_lat"
         const val KEY_HOME_LON = "home_lon"

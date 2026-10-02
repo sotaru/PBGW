@@ -21,7 +21,11 @@
     <string name="status_spiral_radius">目前繞圈半徑：%1$s</string>
     <string name="status_spiral_width">線寬：%1$s · 圈距：%2$s</string>
     <string name="spiral_width_title">蚊香巡邏線寬（公尺）</string>
-    <string name="spiral_width_explanation">線寬代表每段行走覆蓋的寬度。相鄰圈會留出略大於線寬的間距，盡量避免壓到走過的區域。從目前座標開始，持續向外繞圈直到停止。</string>
+    <string name="spiral_width_explanation">線寬代表每段行走覆蓋的寬度。相鄰圈會留出略大於線寬的間距，盡量避免壓到走過的區域。從目前座標開始，持續向外繞圈直到停止。\n\n這次調整只用於本次巡邏，不會更改設定中的預設值。</string>
+    <string name="pref_cat_spiral">蚊香巡邏</string>
+    <string name="pref_spiral_width_title">預設線寬（公尺）</string>
+    <string name="pref_spiral_width_summary">%1$s 公尺；每次開始蚊香巡邏時自動帶入，不影響正在進行的巡邏。</string>
+    <string name="pref_spiral_width_help">請輸入 1～1000 公尺，可使用小數。每次開始蚊香巡邏時會帶入這個值，開始前也能臨時調整。</string>
     <string name="spiral_width_invalid">請輸入 1～1000 公尺的線寬</string>
     <string name="home_unknown">尚未取得 home</string>
     <string name="menu_map_provider">切換地圖來源</string>
