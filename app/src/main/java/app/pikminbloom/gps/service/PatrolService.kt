@@ -34,6 +34,7 @@ import app.pikminbloom.gps.route.PatrolPlanner
 import app.pikminbloom.gps.route.RouteSegment
 import app.pikminbloom.gps.route.SegmentKind
 import app.pikminbloom.gps.route.SpiralRoute
+import app.pikminbloom.gps.route.forCollection
 import app.pikminbloom.gps.sim.Sample
 import app.pikminbloom.gps.sim.ManualInputBuffer
 import app.pikminbloom.gps.sim.WalkSimulator
@@ -148,6 +149,7 @@ class PatrolService : LifecycleService() {
 
         // Live inputs. Each collector runs on the engine thread, so it can touch the simulator.
         lifecycleScope.launch(engine) { store.waypoints.collect { onWaypointsChanged(it) } }
+        lifecycleScope.launch(engine) { store.activeRouteId.collect { onConfigChanged("activeRoute") } }
         lifecycleScope.launch(engine) { _travelOverride.collect { onTravelOverrideChanged(it) } }
         lifecycleScope.launch(engine) {
             _joystick.map { it.enabled to it.speedMode }.distinctUntilChanged().collect { (enabled, speedMode) ->
@@ -246,7 +248,8 @@ class PatrolService : LifecycleService() {
         val checkpoint = PatrolCheckpoint.resumable(this)
         if (checkpoint != null && requestedMode == PatrolMode.WAYPOINTS) { failNow(getString(R.string.svc_err_checkpoint_pending)); return }
 
-        config = prefs.config()
+        mode = requestedMode
+        config = routeConfig(requestedMode)
         waypoints = store.load()
         if (requestedMode == PatrolMode.WAYPOINTS && waypoints.isEmpty()) { failNow(getString(R.string.svc_err_no_waypoints)); return }
         if (!mock.isMockAppSelected()) { failNow(getString(R.string.svc_err_not_mock_app)); return }
@@ -318,6 +321,8 @@ class PatrolService : LifecycleService() {
     ) {
         if (nextMode == PatrolMode.WAYPOINTS && waypoints.isEmpty()) return
         mode = nextMode
+        config = routeConfig(mode)
+        sim.updateConfig(config)
         spiral = if (mode == PatrolMode.SPIRAL) SpiralRoute(from, lineWidthM = lineWidthM) else null
         replanPending = false
         doneThisLap.clear()
@@ -374,8 +379,9 @@ class PatrolService : LifecycleService() {
         _state.value = PatrolState(phase = PatrolPhase.STARTING, mockAppSelected = mock.isMockAppSelected(), travelOverride = _travelOverride.value)
         stopRequested = false
         pendingFinish = null
-        config = prefs.config()
+        mode = cp.mode
         if (cp.routeId.isNotBlank()) store.switchTo(cp.routeId)
+        config = routeConfig(cp.mode)
         waypoints = store.load()
         if (!mock.isMockAppSelected()) { failNow(getString(R.string.svc_err_not_mock_app)); return }
         acquireWakeLock()
@@ -532,7 +538,11 @@ class PatrolService : LifecycleService() {
 
     /** The active route's travel mode; WALK for an ordinary patrol. */
     private val routeTravelMode: TravelMode
-        get() = store.activeRoute()?.travelMode ?: TravelMode.WALK
+        get() = store.activeRoute()?.let { if (it.collectOnce) TravelMode.WALK else it.travelMode } ?: TravelMode.WALK
+
+    private fun routeConfig(forMode: PatrolMode): PatrolConfig = prefs.config().forCollection(
+        forMode == PatrolMode.WAYPOINTS && store.activeRoute()?.collectOnce == true,
+    )
 
     private fun loadLap(from: LatLng, startIndex: Int = 0) {
         var order = PatrolPlanner.orderFor(lap, waypoints.size, config.loopMode)
@@ -795,7 +805,7 @@ class PatrolService : LifecycleService() {
     /** A settings screen edit while walking: re-read everything and hand the simulator the new speed. */
     private fun onConfigChanged(key: String?) {
         if (state.value.phase == PatrolPhase.IDLE) return
-        val fresh = prefs.config()
+        val fresh = routeConfig(mode)
         if (fresh == config) return
         if (state.value.phase == PatrolPhase.MANUAL) advanceManualTo(SystemClock.elapsedRealtime())
         val speedChanged = fresh.speedMps != config.speedMps
@@ -811,6 +821,7 @@ class PatrolService : LifecycleService() {
      * it still makes sense, then continue with whatever is left of the lap, in the new order.
      */
     private fun onWaypointsChanged(list: List<Waypoint>) {
+        onConfigChanged("waypoints")
         val previous = waypoints
         waypoints = list
         if (mode != PatrolMode.WAYPOINTS) return

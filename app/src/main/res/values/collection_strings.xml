@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="collection_title">貼上座標規劃採花路線</string>
+    <string name="collection_default_name">採花路線</string>
+    <string name="collection_help">每行貼一組「緯度,經度」，可在前面或後面加名稱。第一筆預設為家，下一步可改選。最多一個家與 300 朵大花；重複座標只留一筆。套用後會新增路線，保留原本的路線。</string>
+    <string name="collection_example">家,25.0330,121.5654\n大花 A,25.0348,121.5680\n大花 B,25.0356,121.5620</string>
+    <string name="collection_read">讀取座標</string>
+    <string name="collection_choose_home">選擇家的位置</string>
+    <string name="collection_home">這一筆設為家，其餘座標設為大花：</string>
+    <string name="collection_points">共 %1$d 朵大花；合併 %2$d 筆重複座標。</string>
+    <string name="collection_plan">規劃路線</string>
+    <string name="collection_planning">規劃中…</string>
+    <string name="collection_edit">返回修改座標</string>
+    <string name="collection_back">返回選家</string>
+    <string name="collection_preview">採花路線預覽</string>
+    <string name="collection_summary">%1$d 朵大花，依序走訪後步行回家停住。\n規劃距離：%2$s（原貼上順序：%3$s）。\n%4$s\n距離以座標中心間的直線計算，不是道路導航；巡邏實際走到大花範圍內，距離會有差異。遊戲內採花仍需自己操作。</string>
+    <string name="collection_exact">14 朵以內：已求得回家一圈的最短座標順序。</string>
+    <string name="collection_approximate">超過 14 朵：已用近似演算法縮短路線，不保證全域最短。</string>
+    <string name="collection_preview_home">出發與回家：%1$s（%2$s）</string>
+    <string name="collection_return_home">→ 回家停住</string>
+    <string name="collection_apply">套用家與大花</string>
+    <string name="collection_ready">採花路線已準備好</string>
+    <string name="collection_start_help">家與全部大花已儲存。按「開始巡邏」→「大花路線巡邏」即可出發。這條路線只走一輪，進入每朵大花範圍後繼續走，最後步行回家停住；按「停止」才恢復手機真實 GPS。</string>
+    <string name="collection_busy">請先停止巡邏或真實 GPS 步數模式，並處理未完成的中斷點，再匯入座標。</string>
+    <string name="collection_save_failed">路線儲存失敗，請確認手機可用空間後再試一次；家的位置尚未修改。</string>
+    <string name="collection_plan_failed">路線規劃失敗，請返回檢查座標後再試一次。</string>
+    <string name="collection_route_badge"> · 採花一輪</string>
+</resources>

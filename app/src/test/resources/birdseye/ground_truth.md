@@ -4,7 +4,7 @@ Captured 2026-09-10 12:09–12:26 CST on the POCO X6 Pro (`PFQCKJPJSWJVB6JR`), P
 screen **1220 × 2712**. All coordinates below are **full-resolution pixels of the PNG**,
 origin top-left, read off by hand from 1:1 crops.
 
-以下座標是歷史截圖的像素標註，不是實機 GPS 位置。GPS 移動判斷另由 `GpsMotionAnalyzerTest` 驗證；本次保留原有像素、顏色統計與標註結果。資料來源與校準方式見 [README](README.md)，目前操作見 [專案說明](../../../../../README.md)。
+以下座標是歷史截圖的像素標註，不是實機 GPS 位置，不能直接貼入 GPS 採花匯入畫面。1.2.8 的座標解析與路線規劃另由 `CollectionRouteTest` 使用合成經緯度驗證；GPS 移動判斷由 `GpsMotionAnalyzerTest` 驗證。本次保留原有像素、顏色統計與標註結果。資料來源與校準方式見 [README](README.md)，目前操作見 [專案說明](../../../../../README.md)。
 
 For each Big Flower two points are given:
 

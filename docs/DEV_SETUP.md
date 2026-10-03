@@ -4,10 +4,13 @@
 
 這台電腦的專案位於 `C:\Projects\PBGW`，Google Maps 金鑰也放在這裡的 `secrets.properties`。換電腦時可以選自己的目錄，不必照搬這個路徑。
 
-## 目前程式碼變動（1.2.7）
+## 目前程式碼變動（1.2.8）
 
 | 功能 | 對應程式碼 | 目前做法 |
 |---|---|---|
+| 貼上 GPS 座標 | `route/CoordinatePasteParser.kt`、`ui/CoordinatePasteDialog.kt`、`collection_strings.xml`、`menu/main.xml` | 多行解析與範圍／大小檢查、重複座標合併、選家與預覽；取消不保存，執行中或有中斷點時禁止套用。 |
+| 採花順序 | `route/CollectionRoutePlanner.kt`、`CollectionRouteTest.kt` | 14 朵以內 Held–Karp；更多點以原順序和多起點最近鄰起步，再做 2-opt，保留較短結果。規劃在背景執行，以大花中心的直線距離計算。 |
+| 採花路線與保存 | `data/WaypointStore.kt`、`service/PatrolService.kt`、`ui/MainActivity.kt`、`ui/WaypointDialogs.kt` | `Route.collectOnce` 預設 false、保存於 v2 JSON；新路線整批原子寫入後啟用。巡邏啟動、恢復、模式切換及即時設定都套用一次巡邏、通過範圍、不繞行、步行回家；預覽含回家線段。 |
 | 自訂家顯示 | `ui/MainActivity.kt`、`ui/GoogleMapLayer.kt`、`strings_live.xml` | `homeForDisplay` 在閒置時優先使用目前設定，避免舊的巡邏快照覆蓋新家；啟動中心也優先使用自訂家。儲存後阻擋尚未完成的 GPS 查詢重新置中，提示說明下次巡邏使用。Google Maps 更新 padding 後重新置中，保持準星與座標對齊。 |
 | 名稱與圖示 | `settings.gradle`、`values/strings.xml`、兩份 `colors.xml`、`data/WaypointStore.kt` | 顯示名稱、設定引導與 GPX 建立程式名稱改為「阿皮小夥伴」；啟動圖示底色固定橙色 `#F57C00`、花瓣白色。套件名稱仍為 `app.pikminbloom.gps`，專案路徑仍是 `C:\Projects\PBGW`。 |
 | 浮動視窗關閉 | `ui/OverlayService.kt`、`ui/MainActivity.kt`、`layout/overlay_bar.xml`、`drawable/ic_close.xml` | 展開後右上角「×」關閉控制列與搖桿；取消搖桿接手，保留巡邏與暫停狀態。本次巡邏抑制自動顯示，手動開啟或新巡邏可恢復，不改自動顯示設定。 |
@@ -71,9 +74,10 @@ Linux／macOS（已設定 Java 與 Android SDK）：
 
 - Debug APK：`app/build/outputs/apk/debug/app-debug.apk`。
 - Release APK：執行 `assembleRelease`，輸出到 `app/build/outputs/apk/release/app-release.apk`。
-- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 9／1.2.7。
-- 本次有 172 項單元測試；其中定時步數 12 項、待寫佇列整合 2 項、GPS 移動分析 9 項、搖桿速度 5 項。
-- 目前結果為 171 項通過、1 項略過、0 項失敗。既有花朵辨識測試需要未納入 Git 的 `live_user5.png`，缺少圖片時會略過；這不代表步數、GPS 或搖桿測試失敗。
+- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 10／1.2.8。
+- 本次有 183 項單元測試；新增座標與採花路線 11 項，原有定時步數 12 項、待寫佇列整合 2 項、GPS 移動分析 9 項、搖桿速度 5 項仍保留。
+- 目前結果為 182 項通過、1 項略過、0 項失敗。既有花朵辨識測試需要未納入 Git 的 `live_user5.png`，缺少圖片時會略過；這不代表步數、GPS 或搖桿測試失敗。
+- `assembleDebug`、`testDebugUnitTest`、`assembleRelease` 與 release 必要的 `lintVitalRelease` 通過。另跑完整 `lintDebug` 時仍有 16 項既有錯誤、44 項警告，錯誤位於未修改的 `MockLocationController.kt`（權限及常數檢查）和 `overlay_bar.xml`（tint 屬性）。新增的座標與採花檔案沒有 Lint 錯誤；完整 Lint 尚未全數通過。
 
 ### 簽章要注意什麼？
 
@@ -109,9 +113,11 @@ $adbPath = '<Android SDK 路徑>/platform-tools/adb.exe'
 & $adbPath -s '<實機序號>' shell dumpsys package app.pikminbloom.gps | Select-String 'versionCode=|versionName=|pkgFlags='
 ~~~
 
-本版應顯示 `versionName=1.2.7`、`versionCode=9`，`pkgFlags` 不含 `DEBUGGABLE`。再確認手機上的「阿皮小夥伴」主畫面、Google Maps 底圖與右上角選單能正常開啟。安裝成功與功能測試分開記錄；正式版沒有 debug receiver，不能用 debug 廣播驗證控制行為。
+本版應顯示 `versionName=1.2.8`、`versionCode=10`，`pkgFlags` 不含 `DEBUGGABLE`。再確認手機上的「阿皮小夥伴」主畫面、Google Maps 底圖與右上角選單能正常開啟。安裝成功與功能測試分開記錄；正式版沒有 debug receiver，不能用 debug 廣播驗證控制行為。
 
 2026-10-03 已更新 TB373FU 的 release 1.2.7，確認版號 9、不可偵錯，裝置上的 APK 雜湊與本機 release 相符。更新前暫停蚊香巡邏，更新後從 checkpoint 接回原位置、距離與步數，再恢復巡邏。原有自訂家與設定保留。
+
+1.2.8 已完成 release 建置，沿用原簽章，並在模擬器確認版本 10、不可偵錯且無 debug receiver，家與路線保留。目前 ADB 只列出模擬器，實機 1.2.8 更新尚未執行。連線後依上方方式先暫停、更新、接回中斷點，再恢復原巡邏；不要為了測試匯入而覆寫使用者的家或路線。
 
 2026-10-03 已用 `install -r` 將 release 1.2.6 更新到 NX721J，確認版本 1.2.6／8、不可偵錯且沒有 debug receiver。主畫面與系統應用程式資訊都顯示「阿皮小夥伴」，圖示底色為橙色；Google Maps、原有設定、定位及 Health Connect 步數授權保留。更新驗證期間未新增健康步數。
 
@@ -122,6 +128,12 @@ $adbPath = '<Android SDK 路徑>/platform-tools/adb.exe'
 待寫步數放在 App 的 `noBackupFilesDir/step_outbox.json`，正常更新會保留，但不會隨系統備份移到另一台裝置。
 
 ## 5. 安全地做測試
+
+1.2.8 的 `CollectionRouteTest` 以固定亂數產生六點資料，將精確規劃結果與獨立窮舉比較；300 點測試確認每點恰好一次、結果不劣於原順序、重算結果一致。另測無效行號、不同分隔符號、重複合併、數量上限，以及採花設定保留原速度與步數上限。
+
+模擬器 UI 已確認錯誤輸入不套用、第二筆可改選成家、合併重複點、預覽前不保存、新路線保留舊路線，以及強制關閉重開後仍保留家與採花模式。關閉步數寫入，以一般設定 `LOOP`／不自動回家啟動採花路線，確認兩朵大花各抵達一次、完成一圈後步行回家並 `PARKED`，今日寫入步數保持 0。此結果不代表遊戲已自動採花；遊戲操作需手動完成。
+
+另確認暫停後強制關閉，從 checkpoint 接回仍保持暫停；繼續後將一般設定改為 `PINGPONG`／8 圈回家，採花路線仍只走一圈後回家停住。回家後的中斷紀錄也能恢復停住狀態。整段驗證未寫入健康步數。
 
 1.2.7 已在模擬器重現「巡邏停止後設定新家，座標已改但房子仍留在舊位置」，並確認修正後標記與座標一致、重開後仍以新家置中。測試期間關閉步數寫入。
 

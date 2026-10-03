@@ -45,6 +45,7 @@ import app.pikminbloom.gps.geo.GpsMotion
 import app.pikminbloom.gps.mock.MockLocationController
 import app.pikminbloom.gps.route.PatrolPlanner
 import app.pikminbloom.gps.route.SpiralRoute
+import app.pikminbloom.gps.route.forCollection
 import app.pikminbloom.gps.service.PatrolCheckpoint
 import app.pikminbloom.gps.service.PatrolEvent
 import app.pikminbloom.gps.service.PatrolService
@@ -635,8 +636,10 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     /** The route the planner would walk on lap 0, used purely as a preview polyline. */
     private fun plannedRoute(waypoints: List<Waypoint>, home: LatLng?): List<GeoPoint> {
         if (waypoints.isEmpty()) return emptyList()
-        val config = prefs.config()
-        val start = PatrolService.state.value.position ?: home ?: waypoints.first().latLng
+        val collection = store.activeRoute()?.collectOnce == true
+        val config = prefs.config().forCollection(collection)
+        val state = PatrolService.state.value
+        val start = state.position?.takeIf { state.phase != PatrolPhase.IDLE } ?: home ?: waypoints.first().latLng
         val plan = runCatching {
             PatrolPlanner.planLap(
                 start = start,
@@ -649,6 +652,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         val points = ArrayList<GeoPoint>(plan.segments.size + 1)
         points.add(GeoPoint(plan.segments.first().from.lat, plan.segments.first().from.lon))
         plan.segments.forEach { points.add(GeoPoint(it.to.lat, it.to.lon)) }
+        if (collection && home != null) points.add(GeoPoint(home.lat, home.lon))
         return points
     }
 
@@ -1138,9 +1142,36 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         R.id.action_real_steps -> { startRealGpsSteps(); true }
         R.id.action_map_provider -> { showMapProviderDialog(); true }
         R.id.action_import -> { importLauncher.launch(arrayOf(MIME_ANY)); true }
+        R.id.action_paste_coordinates -> { showCoordinatePaste(); true }
         R.id.action_export_json -> { exportJsonLauncher.launch(getString(R.string.export_json_filename)); true }
         R.id.action_export_gpx -> { exportGpxLauncher.launch(getString(R.string.export_gpx_filename)); true }
         else -> super.onOptionsItemSelected(item)
+    }
+
+    private fun showCoordinatePaste() {
+        fun canApply(): Boolean {
+            if (PatrolService.isRunning || RealGpsStepsService.isRunning || PatrolCheckpoint.resumable(this) != null) {
+                toast(getString(R.string.collection_busy))
+                return false
+            }
+            return true
+        }
+        if (!canApply()) return
+        CoordinatePasteDialog.show(this) { name, home, flowers ->
+            if (!canApply()) return@show false
+            try {
+                store.createCollectionRoute(name, flowers.map { point ->
+                    Waypoint(UUID.randomUUID().toString(), point.name, point.position.lat, point.position.lon,
+                        radiusM = prefs.defaultRadiusM, dwellSec = 0)
+                })
+                setCustomHome(home)
+                rebuildOverlays()
+                true
+            } catch (e: Exception) {
+                toast(getString(R.string.collection_save_failed))
+                false
+            }
+        }
     }
 
     private fun showWaypointList() {

@@ -212,7 +212,8 @@ object WaypointDialogs {
         val routes = store.routeList()
         val activeId = store.activeRouteId.value
         val labels = routes.map { r ->
-            activity.getString(R.string.route_item, r.name, r.waypoints.size)
+            activity.getString(R.string.route_item, r.name, r.waypoints.size) +
+                if (r.collectOnce) activity.getString(R.string.collection_route_badge) else ""
         }.toTypedArray()
         val checkedIndex = routes.indexOfFirst { it.id == activeId }.coerceAtLeast(0)
 

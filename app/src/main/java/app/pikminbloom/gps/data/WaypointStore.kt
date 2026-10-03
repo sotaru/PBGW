@@ -2,6 +2,7 @@ package app.pikminbloom.gps.data
 
 import android.content.Context
 import android.util.Log
+import android.util.AtomicFile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONArray
@@ -23,6 +24,8 @@ data class Route(
      * which case the walking (steps, planting) happens only inside that waypoint's circle.
      */
     val travelMode: TravelMode = TravelMode.WALK,
+    /** Visit every flower once, pass through its circle, then walk home and park. */
+    val collectOnce: Boolean = false,
 )
 
 /**
@@ -40,6 +43,7 @@ data class Route(
 class WaypointStore private constructor(context: Context) {
 
     private val file = File(context.applicationContext.filesDir, FILE_NAME)
+    private val atomicFile = AtomicFile(file)
 
     private var state: Snapshot = readFile()
 
@@ -105,8 +109,19 @@ class WaypointStore private constructor(context: Context) {
             name = uniqueName(name.ifBlank { DEFAULT_ROUTE_NAME }),
             waypoints = source?.waypoints.orEmpty(),
             travelMode = if (source != null) source.travelMode else travelMode,
+            collectOnce = source?.collectOnce ?: false,
         )
         commit(Snapshot(state.routes + route, route.id))
+        return route.id
+    }
+
+    /** Persist the complete new route before publishing it; a failed write changes no active route. */
+    @Synchronized
+    fun createCollectionRoute(name: String, waypoints: List<Waypoint>): String {
+        require(waypoints.isNotEmpty())
+        val route = Route(UUID.randomUUID().toString(), uniqueName(name.ifBlank { "採花路線" }), waypoints,
+            travelMode = TravelMode.WALK, collectOnce = true)
+        commit(Snapshot(state.routes + route, route.id), strict = true)
         return route.id
     }
 
@@ -149,13 +164,25 @@ class WaypointStore private constructor(context: Context) {
     }
 
     @Synchronized
-    private fun commit(next: Snapshot) {
+    private fun commit(next: Snapshot, strict: Boolean = false) {
+        try {
+            val output = atomicFile.startWrite()
+            try {
+                output.write(toJson(next).toByteArray(Charsets.UTF_8))
+                atomicFile.finishWrite(output)
+            } catch (t: Throwable) {
+                atomicFile.failWrite(output)
+                throw t
+            }
+        } catch (t: Throwable) {
+            if (strict) throw t
+            Log.w(TAG, "save routes failed", t)
+            return
+        }
         state = next
         _routes.value = next.routes
         _activeRouteId.value = next.activeRouteId
         _waypoints.value = next.active?.waypoints ?: emptyList()
-        runCatching { file.writeText(toJson(next)) }
-            .onFailure { Log.w(TAG, "save routes failed", it) }
     }
 
     // ---------------------------------------------------------------- import / export
@@ -177,7 +204,9 @@ class WaypointStore private constructor(context: Context) {
                     val r = routesArr.optJSONObject(i) ?: continue
                     val wps = parseWaypoints(r.optJSONArray("waypoints") ?: JSONArray())
                     if (wps.isEmpty()) continue
-                    imported.add(Route(UUID.randomUUID().toString(), uniqueName(r.optString("name").ifBlank { DEFAULT_ROUTE_NAME }), wps))
+                    imported.add(Route(UUID.randomUUID().toString(), uniqueName(r.optString("name").ifBlank { DEFAULT_ROUTE_NAME }), wps,
+                        travelMode = runCatching { TravelMode.valueOf(r.optString("travelMode")) }.getOrDefault(TravelMode.WALK),
+                        collectOnce = r.optBoolean("collectOnce", false)))
                 }
                 if (imported.isEmpty()) return 0
                 commit(Snapshot(state.routes + imported, imported.first().id))
@@ -277,7 +306,8 @@ class WaypointStore private constructor(context: Context) {
     // ---------------------------------------------------------------- persistence
 
     private fun readFile(): Snapshot = try {
-        if (file.exists()) fromJson(file.readText()) else emptySnapshot()
+        if (file.exists() || File(file.path + ".bak").exists())
+            fromJson(atomicFile.openRead().bufferedReader().use { it.readText() }) else emptySnapshot()
     } catch (t: Throwable) {
         Log.w(TAG, "read routes failed", t); emptySnapshot()
     }
@@ -297,7 +327,8 @@ class WaypointStore private constructor(context: Context) {
                     put("radiusM", w.radiusM); put("dwellSec", w.dwellSec)
                 })
             }
-            routes.put(JSONObject().put("id", r.id).put("name", r.name).put("travelMode", r.travelMode.name).put("waypoints", wps))
+            routes.put(JSONObject().put("id", r.id).put("name", r.name).put("travelMode", r.travelMode.name)
+                .put("collectOnce", r.collectOnce).put("waypoints", wps))
         }
         return JSONObject()
             .put("version", 2)
@@ -321,6 +352,7 @@ class WaypointStore private constructor(context: Context) {
                             name = r.optString("name").takeIf { it.isNotBlank() } ?: "$DEFAULT_ROUTE_NAME ${i + 1}",
                             waypoints = parseWaypoints(r.optJSONArray("waypoints") ?: JSONArray()),
                             travelMode = runCatching { TravelMode.valueOf(r.optString("travelMode")) }.getOrDefault(TravelMode.WALK),
+                            collectOnce = r.optBoolean("collectOnce", false),
                         )
                     )
                 }

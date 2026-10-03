@@ -55,6 +55,8 @@
         android:title="@string/menu_import"
         app:showAsAction="never" />
 
+    <item android:id="@+id/action_paste_coordinates" android:title="@string/collection_title" app:showAsAction="never" />
+
     <item
         android:id="@+id/action_export_json"
         android:icon="@drawable/ic_export"
