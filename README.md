@@ -1,15 +1,15 @@
-# 皮克敏巡花助手（PBGW）
+# 阿皮小夥伴（PBGW）
 
 Android 定位與步數工具。可以模擬巡邏大花路線、向外繞圈或跳到指定座標，也能保留手機真實 GPS，依本次目標逐步新增 Health Connect 步數。不需要 root 或 Shizuku，遊戲裡的操作仍需自己完成。
 
-目前版本：**1.2.5**。本專案位於 [sotaru/PBGW](https://github.com/sotaru/PBGW)，上游專案為 [SmailDot/Pikmin-Bloom-GPS](https://github.com/SmailDot/Pikmin-Bloom-GPS)。
+目前版本：**1.2.6**。App 顯示名稱為「阿皮小夥伴」，圖示採用橙色底、白色花瓣。本專案位於 [sotaru/PBGW](https://github.com/sotaru/PBGW)，上游專案為 [SmailDot/Pikmin-Bloom-GPS](https://github.com/SmailDot/Pikmin-Bloom-GPS)。
 
 > 提醒：模擬位置和步數不是實際運動紀錄，請勿拿來判斷健康狀況。這類操作可能違反遊戲規則，也可能影響帳號。本專案不保證遊戲會採計步數或帳號安全。
 
 ## 第一次使用
 
 1. 在 App 的右上角選單開啟「初始設定」，依畫面完成定位權限等設定。
-2. 要使用模擬巡邏或座標跳轉，到 Android「開發者選項 → 選擇模擬位置應用程式」，選擇「皮克敏巡花助手」。真實 GPS 步數模式不需要這項設定。
+2. 要使用模擬巡邏或座標跳轉，到 Android「開發者選項 → 選擇模擬位置應用程式」，選擇「阿皮小夥伴」。真實 GPS 步數模式不需要這項設定。
 3. 模擬巡邏要寫入步數與距離，需允許這兩項資料的讀寫；真實 GPS 步數模式只要求步數讀寫權限。不需要步數功能時，可以只使用模擬定位。
 4. 要在背景巡邏，請檢查電池最佳化與背景活動限制；浮動控制列則需要「顯示在其他 App 上層」權限。
 5. 要讓 Pikmin Bloom 讀取步數，請在遊戲「設定 → 隱私權與步數 → 步數」選擇 Health Connect，並允許遊戲讀取步數及在背景存取資料。不同版本的選單名稱可能稍有不同。
@@ -144,23 +144,34 @@ Linux／macOS（已設定 Java 與 Android SDK）：
 
 APK 位置：`app/build/outputs/apk/debug/app-debug.apk`。
 
-上方是開發測試版。要安裝正式版，改用 `assembleRelease` 建置，APK 位於 `app/build/outputs/apk/release/app-release.apk`；下方安裝指令的 APK 路徑也要換成這個位置。正式版不含 ADB 測試接收器，簽章規則見開發環境說明。
+上方是開發測試版。正式版請另執行：
+
+~~~powershell
+.\gradlew.bat assembleRelease --console=plain
+~~~
+
+正式版 APK 位於 `app/build/outputs/apk/release/app-release.apk`，不含 ADB 測試接收器，也不可偵錯。這台電腦沿用原有簽章，完整簽章規則見開發環境說明。
 
 更新前先暫停巡邏，讓恢復紀錄有時間保存。使用 ADB 更新：
 
 ~~~powershell
 $adbPath = '<Android SDK 路徑>/platform-tools/adb.exe'
 & $adbPath devices -l
-& $adbPath -s '<裝置序號>' install -r app/build/outputs/apk/debug/app-debug.apk
-& $adbPath -s '<裝置序號>' shell am start --activity-clear-top -n app.pikminbloom.gps/.ui.MainActivity
+& $adbPath -s '<實機序號>' install -r app/build/outputs/apk/release/app-release.apk
+& $adbPath -s '<實機序號>' shell am start --activity-clear-top -n app.pikminbloom.gps/.ui.MainActivity
+& $adbPath -s '<實機序號>' shell dumpsys package app.pikminbloom.gps | Select-String 'versionCode=|versionName=|pkgFlags='
 ~~~
 
 `install -r` 在簽章相符時會保留原有資料，但不會自動完成 Health Connect 等特殊授權。換電腦後，debug 簽章可能不同；請先確認簽章，不要為了安裝而直接解除安裝，以免丟失設定與待寫資料。
 
+安裝後應看到 `versionName=1.2.6`、`versionCode=8`，`pkgFlags` 不含 `DEBUGGABLE`，並確認手機能開啟「阿皮小夥伴」主畫面。正式版操作請使用畫面上的按鈕，開發文件中的 debug 廣播指令不適用。
+
 ## 這版確認過哪些功能？
 
+- 2026-10-03 已將 release 1.2.6 直接更新到 NX721J，確認顯示「阿皮小夥伴」、橙色底圖示、Google Maps 與原有設定。版號為 8，不可偵錯，也沒有 debug receiver；更新及畫面檢查期間未新增健康步數。
 - 172 項單元測試中，171 項通過、1 項因缺少本機測試圖片而略過，沒有失敗。涵蓋定時步數、GPS 移動判斷、偏向抖動、暫停不補計、目標上限，以及原有的搖桿、路線、跨日上限與失敗重試。
 - 模擬器已確認跳轉、蚊香參數、暫停，以及寫入權限不足時，停止／重開仍保留同一筆待寫資料。
+- 浮動視窗右上角「×」已確認能關閉控制列與搖桿、保留巡邏與暫停狀態；繼續後不會自動重開，主選單與下次巡邏可重新顯示。正式版也已在模擬器確認關閉按鈕正常。
 - 已安裝到 Android 平板並確認可開啟；檢查時未向平板加入測試步數。
 - NX721J 已驗證真實 GPS 定位、暫停與停止；實機驗證期間沒有新增健康步數。移動／停止分類與偏向抖動已有單元測試，戶外長時間實走尚未驗證。
 - 模擬器已驗證真實 GPS 步數模式寫入恰好 3 步後停止，待寫佇列清空；這是測試裝置的資料。

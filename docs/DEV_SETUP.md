@@ -1,13 +1,14 @@
-# 開發環境與交接
+# 阿皮小夥伴：開發環境與交接
 
 這份文件說明如何在另一台電腦接手、建置及更新裝置。一般操作請看 [README](../README.md)，版本差異請看 [版本紀錄](../CHANGELOG.md)。[PLAN.md](PLAN.md) 保留早期設計與研究，部分內容已不是目前的做法。
 
 這台電腦的專案位於 `C:\Projects\PBGW`，Google Maps 金鑰也放在這裡的 `secrets.properties`。換電腦時可以選自己的目錄，不必照搬這個路徑。
 
-## 目前程式碼變動（1.2.5）
+## 目前程式碼變動（1.2.6）
 
 | 功能 | 對應程式碼 | 目前做法 |
 |---|---|---|
+| 名稱與圖示 | `settings.gradle`、`values/strings.xml`、兩份 `colors.xml`、`data/WaypointStore.kt` | 顯示名稱、設定引導與 GPX 建立程式名稱改為「阿皮小夥伴」；啟動圖示底色固定橙色 `#F57C00`、花瓣白色。套件名稱仍為 `app.pikminbloom.gps`，專案路徑仍是 `C:\Projects\PBGW`。 |
 | 浮動視窗關閉 | `ui/OverlayService.kt`、`ui/MainActivity.kt`、`layout/overlay_bar.xml`、`drawable/ic_close.xml` | 展開後右上角「×」關閉控制列與搖桿；取消搖桿接手，保留巡邏與暫停狀態。本次巡邏抑制自動顯示，手動開啟或新巡邏可恢復，不改自動顯示設定。 |
 | 搖桿速度 | `data/JoystickSpeeds.kt`、`ui/JoystickSpeedDialog.kt`、`PatrolService`、`WalkSimulator`、`OverlayService` | 每次開啟都選本次速度；取消不開啟，手動速度與自動巡邏分開。步行、快走、慢跑計步，交通工具不計步。 |
 | Google Maps | `data/Prefs.kt`、`ui/MainActivity.kt` | 未儲存地圖選擇時，有金鑰就用 Google Maps；保留手動選擇。啟動切換地圖時沿用已設定的中心，避開尚未完成版面的 MapView。 |
@@ -69,7 +70,7 @@ Linux／macOS（已設定 Java 與 Android SDK）：
 
 - Debug APK：`app/build/outputs/apk/debug/app-debug.apk`。
 - Release APK：執行 `assembleRelease`，輸出到 `app/build/outputs/apk/release/app-release.apk`。
-- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 7／1.2.5。
+- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 8／1.2.6。
 - 本次有 172 項單元測試；其中定時步數 12 項、待寫佇列整合 2 項、GPS 移動分析 9 項、搖桿速度 5 項。
 - 目前結果為 171 項通過、1 項略過、0 項失敗。既有花朵辨識測試需要未納入 Git 的 `live_user5.png`，缺少圖片時會略過；這不代表步數、GPS 或搖桿測試失敗。
 
@@ -104,9 +105,14 @@ $adbPath = '<Android SDK 路徑>/platform-tools/adb.exe'
 .\gradlew.bat assembleRelease --console=plain
 & $adbPath -s '<實機序號>' install -r app/build/outputs/apk/release/app-release.apk
 & $adbPath -s '<實機序號>' shell am start --activity-clear-top -n app.pikminbloom.gps/.ui.MainActivity
+& $adbPath -s '<實機序號>' shell dumpsys package app.pikminbloom.gps | Select-String 'versionCode=|versionName=|pkgFlags='
 ~~~
 
-1.2.5 的 release APK 已通過建置與簽章核對，模擬器也已確認可開啟、新模式入口與抖動說明正常，不含 debug receiver。浮動視窗「×」已驗證可關閉控制列與搖桿、保留巡邏及暫停狀態，繼續後不會自動重開；手動開啟與新巡邏可恢復顯示。這些控制測試期間關閉步數寫入。
+本版應顯示 `versionName=1.2.6`、`versionCode=8`，`pkgFlags` 不含 `DEBUGGABLE`。再確認手機上的「阿皮小夥伴」主畫面、Google Maps 底圖與右上角選單能正常開啟。安裝成功與功能測試分開記錄；正式版沒有 debug receiver，不能用 debug 廣播驗證控制行為。
+
+2026-10-03 已用 `install -r` 將 release 1.2.6 更新到 NX721J，確認版本 1.2.6／8、不可偵錯且沒有 debug receiver。主畫面與系統應用程式資訊都顯示「阿皮小夥伴」，圖示底色為橙色；Google Maps、原有設定、定位及 Health Connect 步數授權保留。更新驗證期間未新增健康步數。
+
+浮動視窗「×」已在模擬器驗證關閉控制列與搖桿、保留巡邏及暫停狀態，繼續後不會自動重開；手動開啟與新巡邏可恢復顯示。實機也已確認關閉圖示可收掉控制列。這些控制測試期間未寫入健康步數。
 
 更新後再檢查模擬位置 App、定位、Health Connect 及浮動控制列權限。部分廠牌會重設權限，請依實際狀況處理，不要每次都盲目改權限。
 

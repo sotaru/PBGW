@@ -1,6 +1,8 @@
-# Google Maps 設定
+# 阿皮小夥伴：Google Maps 設定
 
 App 尚未儲存地圖選擇時，有設定 API 金鑰就預設使用 Google Maps；沒有金鑰則使用 OpenStreetMap。手動切換後會記住你的選擇。沒金鑰也能建置，其他功能照常可用；Google Maps 仍需要裝置有可用的 Google Play 服務。
+
+App 顯示名稱為「阿皮小夥伴」。Google Cloud 的 Android 應用程式限制仍填套件名稱 `app.pikminbloom.gps`，不使用中文顯示名稱。
 
 ## 準備與本機設定
 
@@ -11,7 +13,7 @@ App 尚未儲存地圖選擇時，有設定 API 金鑰就預設使用 Google Map
 1. 在「應用程式限制」選 **Android apps**，填入套件名稱 `app.pikminbloom.gps`，以及 APK 簽章的 SHA-1 指紋。
 2. 在「API 限制」只允許 **Maps SDK for Android**。
 
-用以下命令查看目前電腦的 debug 簽章 SHA-1；請找 `debug` 的結果：
+用以下命令查看目前電腦的簽章 SHA-1；開發版看 `debug`，正式版看 `release` 的結果：
 
 ```powershell
 $env:JAVA_HOME = 'C:/Program Files/Android/Android Studio/jbr'
@@ -26,13 +28,15 @@ MAPS_API_KEY=你的金鑰
 
 `secrets.properties` 已排除在 Git 之外。不要把金鑰放進原始碼、上傳 GitHub，或直接貼到對話裡。也可以使用環境變數 `MAPS_API_KEY`，或放在 `local.properties`。如果同時設定，會依序使用 `secrets.properties`、`local.properties`、環境變數的值。
 
-設定後重新建置並安裝：
+設定後重新建置並安裝。這次要更新手機正式版，使用：
 
 ```powershell
-.\gradlew.bat assembleDebug --console=plain
+.\gradlew.bat assembleRelease --console=plain
 ```
 
 更新 APK 的方式見 [開發環境說明](DEV_SETUP.md)。尚未儲存地圖選擇的 App，安裝有金鑰的版本後就會預設開啟 Google Maps；若先前已手動選擇 OpenStreetMap，可到 App 右上角選單 →「切換地圖來源」→ Google Maps。
+
+這台電腦的 release 建置沿用原有 debug 簽章，因此目前兩者使用相同的 SHA-1。日後改用獨立 release 簽章時，Google Cloud 的 Android 應用程式限制也要加入新指紋，並確認手機原有版本能以該簽章更新。
 
 ## 設定後要確認什麼？
 

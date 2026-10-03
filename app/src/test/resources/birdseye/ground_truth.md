@@ -1,4 +1,4 @@
-# 俯瞰模式截圖：人工標註資料
+# 阿皮小夥伴：俯瞰模式截圖人工標註資料
 
 Captured 2026-09-10 12:09–12:26 CST on the POCO X6 Pro (`PFQCKJPJSWJVB6JR`), Pikmin Bloom,
 screen **1220 × 2712**. All coordinates below are **full-resolution pixels of the PNG**,

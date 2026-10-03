@@ -192,7 +192,7 @@ class WaypointStore private constructor(context: Context) {
     fun exportGpx(): String {
         val sb = StringBuilder()
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
-        sb.append("<gpx version=\"1.1\" creator=\"PikminBloomGPS\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
+        sb.append("<gpx version=\"1.1\" creator=\"阿皮小夥伴\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
         for (w in load()) {
             sb.append("  <wpt lat=\"${w.lat}\" lon=\"${w.lon}\">\n")
             sb.append("    <name>${escape(w.name)}</name>\n")

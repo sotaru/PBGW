@@ -1,10 +1,12 @@
-# 皮克敏巡花助手（Pikmin Bloom GPS）：規格與實作紀錄
+# 阿皮小夥伴：規格與實作紀錄
 
 > 本文件同時是給人看的計畫，也是給實作代理 (implementation agents) 的任務書。API 名稱維持英文。
 
 > 這份文件保留早期設計與研究，部分環境和做法已經改變。目前的操作與限制請以 [README](../README.md)、[版本紀錄](../CHANGELOG.md) 和實際程式為準；開發交接請看 [DEV_SETUP](DEV_SETUP.md)。
 
-## 目前實作（1.2.5）
+## 目前實作（1.2.6）
+
+App、設定引導與文件統一使用「阿皮小夥伴」。啟動圖示固定為橙色底（`#F57C00`）、白色花瓣，一般與圓形圖示共用相同資源。套件名稱、簽章與專案路徑沿用原設定，保留更新相容性。
 
 浮動控制列展開後，右上角「×」可關閉控制列與搖桿，巡邏繼續；若原本暫停則保持暫停。手動關閉後，在同一程序的本次巡邏中抑制自動顯示，主選單重新開啟或下次巡邏可恢復。自動顯示設定不變。
 
@@ -17,6 +19,10 @@ GPS 分析以定位的單調時間排序，排除模擬、過期與順序錯誤�
 兩個服務共用 `noBackupFilesDir/step_outbox.json` 與 `StepWriteOutbox`，沿用本機日期的每日上限、跨日分段、原子保存與同一識別碼重試。新模式的批次使用 `real-` 前綴，寫成 `Metadata.manualEntry`，不新增 `DistanceRecord`；模擬巡邏重試這些批次時，也保留手動輸入標記。只有本次已寫入數達到目標才顯示完成；每日上限不足則停止並提示。
 
 地圖支援 Google Maps 與 OpenStreetMap。有金鑰且未儲存地圖選擇時預設用 Google Maps，既有選擇保留；啟動時沿用已設定的中心，避免從尚未完成版面的地圖讀到錯誤中心。搖桿每次開啟都選本次速度，取消不開啟，手動速度與自動巡邏分開。
+
+正式版為 `1.2.6`／`versionCode 8`，以 `assembleRelease` 建置。Release 不可偵錯，也不包含 debug receiver；本機沿用原有簽章，以便保留手機資料直接更新。安裝方式與版本核對指令已整理在 [DEV_SETUP](DEV_SETUP.md)。
+
+2026-10-03 已直接更新 NX721J 的 release 1.2.6，確認新名稱、橙色圖示、Google Maps、原有設定與步數授權保留。更新及畫面檢查期間未新增健康步數。
 
 目前 172 項測試中，171 項通過、1 項既有圖片測試略過。新增模式已在模擬器驗證恰好寫入目標 3 步並停止；NX721J 已收到真實 GPS，驗證暫停、停止時未新增健康步數。移動／停止與偏向抖動已由合成資料測試覆蓋，戶外長時間實走尚未驗證。完整程式碼盤點與建置方式見 [DEV_SETUP](DEV_SETUP.md)。
 
@@ -180,7 +186,7 @@ Lifecycle:
 Exported `BroadcastReceiver` with action `app.pikminbloom.gps.DEBUG_CMD`, extras: `cmd` in {`start`,`pause`,`resume`,`return_home`,`stop`,`set_waypoints`,`set_home`,`write_steps`}, `waypoints` (String "lat,lon,name;lat,lon,name"), `home` ("lat,lon"), `steps` (Int), `minutes` (Int). It writes to WaypointStore/Prefs and forwards to PatrolService. Purpose: `adb shell am broadcast -a app.pikminbloom.gps.DEBUG_CMD --es cmd start ...` for automated device tests. Must not exist in release.
 
 ## 4. 手機端設定步驟（使用者）
-1. 開發者選項 → USB 偵錯（已完成）→ **選擇模擬位置應用程式 = 皮克敏巡花助手**。
+1. 開發者選項 → USB 偵錯（已完成）→ **選擇模擬位置應用程式 = 阿皮小夥伴**。
 2. App 初始設定頁完成所有檢查。
 3. Pikmin Bloom：設定 → 隱私與步數 → 步數 → **Health Connect**；Health Connect → 應用程式權限 → Pikmin Bloom → 允許讀取步數 + **背景存取**。Pikmin 定位權限「一律允許」。
 4. 在地圖長按加入大花 → 開始巡邏 → 遊戲內開啟種花 → 抵達提醒時到遊戲點大花往下滑領花蜜 → 想結束按「回家」。
@@ -211,7 +217,7 @@ Exported `BroadcastReceiver` with action `app.pikminbloom.gps.DEBUG_CMD`, extras
 
 實測數據：本 App 已寫入 984 步，`readRecords`（自己的 dataOrigin）讀得到 984，
 但 `aggregate(COUNT_TOTAL)` 回傳 0，Health Connect UI 顯示「772 步 · 小米運動健康」。
-把「皮克敏巡花助手」加入資料來源後，總計立刻變成 1,756。
+把本 App（目前名稱為「阿皮小夥伴」）加入資料來源後，總計立刻變成 1,756。
 
 該畫面的官方說明文字即是證據：
 > 如果從清單移除資料來源，該來源仍會具有寫入權限，但其資料就不會再計入總數。

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">皮克敏巡花助手</string>
+    <string name="app_name">阿皮小夥伴</string>
     <string name="title_settings">設定</string>
     <string name="title_setup">初始設定</string>
     <string name="title_health_rationale">健康資料使用說明</string>
@@ -90,7 +90,7 @@
     <string name="dlg_need_notification_title">建議開啟通知</string>
     <string name="dlg_need_notification_msg">通知用來顯示巡邏狀態與「已抵達大花」提醒。不開啟也可以繼續巡邏。</string>
     <string name="dlg_need_mock_title">尚未選擇模擬位置應用程式</string>
-    <string name="dlg_need_mock_msg">請到「設定 → 其他設定 → 開發者選項 → 選擇模擬位置應用程式」，選擇「皮克敏巡花助手」後再回來。</string>
+    <string name="dlg_need_mock_msg">請到「設定 → 其他設定 → 開發者選項 → 選擇模擬位置應用程式」，選擇「阿皮小夥伴」後再回來。</string>
     <string name="dlg_no_waypoints_title">尚未加入大花</string>
     <string name="dlg_no_waypoints_msg">請先在地圖上長按，加入至少一個大花位置。</string>
     <string name="dlg_hc_unavailable_title">Health Connect 不可用</string>
@@ -138,7 +138,7 @@
     <string name="setup_notification_desc">巡邏是前景服務，需要常駐通知；抵達大花時也會用通知加震動提醒你去領花蜜。</string>
 
     <string name="setup_mock_title">3. 開發者選項 → 選擇模擬位置應用程式</string>
-    <string name="setup_mock_desc">HyperOS / 小米：設定 → 我的裝置 → 全部規格 → 連點「OS 版本」7 次開啟開發者選項；接著到 設定 → 其他設定 → 開發者選項 → 選擇模擬位置應用程式 → 選「皮克敏巡花助手」。</string>
+    <string name="setup_mock_desc">HyperOS / 小米：設定 → 我的裝置 → 全部規格 → 連點「OS 版本」7 次開啟開發者選項；接著到 設定 → 其他設定 → 開發者選項 → 選擇模擬位置應用程式 → 選「阿皮小夥伴」。</string>
 
     <string name="setup_health_title">4. Health Connect（步數）</string>
     <string name="setup_health_desc">巡邏走出來的距離會換算成步數寫入 Health Connect，Pikmin Bloom 才能拿來培育花苗。需要步數與距離的讀寫權限。</string>
@@ -148,12 +148,12 @@
     <string name="action_open_health_connect">開啟 Health Connect</string>
 
     <string name="setup_battery_title">5. 電池最佳化排除</string>
-    <string name="setup_battery_desc">HyperOS 的省電策略會殺掉前景服務。請把本 App 排除電池最佳化，並到 設定 → 應用程式 → 皮克敏巡花助手 → 省電策略 選「無限制」，同時開啟「自啟動」。</string>
+    <string name="setup_battery_desc">HyperOS 的省電策略會殺掉前景服務。請把本 App 排除電池最佳化，並到 設定 → 應用程式 → 阿皮小夥伴 → 省電策略 選「無限制」，同時開啟「自啟動」。</string>
     <string name="action_exclude_battery">排除電池最佳化</string>
 
     <string name="setup_overlay_title">6. 浮動控制列權限（顯示在其他應用程式上層）</string>
     <string name="setup_overlay_desc">開啟後才能在 Pikmin Bloom 畫面上顯示浮動控制列，不用切回本 App 就能暫停 / 回家 / 停止巡邏。</string>
-    <string name="setup_overlay_hint">HyperOS / 小米：除了「顯示在其他應用程式上層」，還要到 設定 → 應用程式 → 皮克敏巡花助手 → 權限 開啟「後台彈出介面」，浮動控制列才會在遊戲上層出現。</string>
+    <string name="setup_overlay_hint">HyperOS / 小米：除了「顯示在其他應用程式上層」，還要到 設定 → 應用程式 → 阿皮小夥伴 → 權限 開啟「後台彈出介面」，浮動控制列才會在遊戲上層出現。</string>
     <string name="action_open_overlay_settings">開啟懸浮視窗權限</string>
 
     <string name="setup_game_title">7. Pikmin Bloom 遊戲內設定（需自行操作）</string>
@@ -172,7 +172,7 @@
     <string name="hc_priority_warning_title">步數沒有被計入</string>
     <string name="hc_priority_warning_msg">本 App 已寫入 %1$d 步，但 Health Connect 今日總計只有 %2$d 步，代表本 App 不在「資料來源」清單中，遊戲讀不到這些步數。
 
-請到 Health Connect →「管理資料」→「資料來源與優先順序」→「新增資料來源」→ 選「皮克敏巡花助手」。</string>
+請到 Health Connect →「管理資料」→「資料來源與優先順序」→「新增資料來源」→ 選「阿皮小夥伴」。</string>
     <string name="action_open_hc_sources">開啟 Health Connect</string>
     <string name="pref_speed_title">走路速度</string>
     <string name="pref_jitter_title">速度抖動</string>
