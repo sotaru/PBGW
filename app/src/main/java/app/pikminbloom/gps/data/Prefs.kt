@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
+import app.pikminbloom.gps.BuildConfig
 import app.pikminbloom.gps.geo.LatLng
 import app.pikminbloom.gps.route.SpiralRoute
 import app.pikminbloom.gps.vision.Calibration
@@ -72,7 +73,10 @@ class Prefs(context: Context) {
         }
 
     var mapProvider: MapProvider
-        get() = enum("map_provider", MapProvider.OPENSTREETMAP)
+        get() = enum(
+            "map_provider",
+            if (BuildConfig.HAS_GOOGLE_MAPS_KEY) MapProvider.GOOGLE else MapProvider.OPENSTREETMAP,
+        )
         set(value) = sp.edit { putString("map_provider", value.name) }
 
     var spiralLineWidthM: Double

@@ -1,8 +1,26 @@
-# 皮克敏巡花助手 (Pikmin Bloom GPS) — 規格與實作計畫
+# 皮克敏巡花助手（Pikmin Bloom GPS）：規格與實作紀錄
 
 > 本文件同時是給人看的計畫，也是給實作代理 (implementation agents) 的任務書。API 名稱維持英文。
 
 > 這份文件保留早期設計與研究，部分環境和做法已經改變。目前的操作與限制請以 [README](../README.md)、[版本紀錄](../CHANGELOG.md) 和實際程式為準；開發交接請看 [DEV_SETUP](DEV_SETUP.md)。
+
+## 目前實作（1.2.5）
+
+浮動控制列展開後，右上角「×」可關閉控制列與搖桿，巡邏繼續；若原本暫停則保持暫停。手動關閉後，在同一程序的本次巡邏中抑制自動顯示，主選單重新開啟或下次巡邏可恢復。自動顯示設定不變。
+
+模擬巡邏、跳轉、蚊香與搖桿仍由 `PatrolService` 處理。新增的 `RealGpsStepsService` 保留實機 GPS，依本次目標逐步新增步數。兩個服務互斥，切換模式前必須先停止目前模式；新模式會清除本 App 留下的模擬定位，不會推送虛構位置。
+
+`TimedStepCounter` 以執行時間累計步數，保留小數部分，暫停或中斷不補計，本次累計不超過目標。它沿用 `speedJitterPct`，每 3～8 秒更新速率。`GpsMotionAnalyzer` 確認移動時，取兩次隨機抖動中的較大值；確認停止時取較小值，讓增減方向偏向相應狀態。不可靠時使用原本的單次隨機抖動；0% 則固定速率。每分鐘步數上限仍會裁切速率，設定變更會即時套用。
+
+GPS 分析以定位的單調時間排序，排除模擬、過期與順序錯誤的訊號。定位誤差需在 25 公尺內；優先使用誤差不超過 0.5 m/s 的 GPS 速度，下界至少 0.5 m/s 判為移動，上界不超過 0.3 m/s 判為停止。沒有可靠速度時使用 10～20 秒座標視窗，比較位移與定位誤差；停止還會檢查整個視窗，避免走回原點就被當成停下。新狀態需確認至少 3 秒，15 秒未更新即回到 `UNKNOWN`。
+
+兩個服務共用 `noBackupFilesDir/step_outbox.json` 與 `StepWriteOutbox`，沿用本機日期的每日上限、跨日分段、原子保存與同一識別碼重試。新模式的批次使用 `real-` 前綴，寫成 `Metadata.manualEntry`，不新增 `DistanceRecord`；模擬巡邏重試這些批次時，也保留手動輸入標記。只有本次已寫入數達到目標才顯示完成；每日上限不足則停止並提示。
+
+地圖支援 Google Maps 與 OpenStreetMap。有金鑰且未儲存地圖選擇時預設用 Google Maps，既有選擇保留；啟動時沿用已設定的中心，避免從尚未完成版面的地圖讀到錯誤中心。搖桿每次開啟都選本次速度，取消不開啟，手動速度與自動巡邏分開。
+
+目前 172 項測試中，171 項通過、1 項既有圖片測試略過。新增模式已在模擬器驗證恰好寫入目標 3 步並停止；NX721J 已收到真實 GPS，驗證暫停、停止時未新增健康步數。移動／停止與偏向抖動已由合成資料測試覆蓋，戶外長時間實走尚未驗證。完整程式碼盤點與建置方式見 [DEV_SETUP](DEV_SETUP.md)。
+
+以下保留早期計畫、當時的 API 契約與歷史實測，不作為目前功能的完整清單。
 
 ## 0. 背景與結論
 
@@ -241,7 +259,9 @@ Exported `BroadcastReceiver` with action `app.pikminbloom.gps.DEBUG_CMD`, extras
   playground 等標籤排序，過濾 access=private 與軍事區，25 m 內去重，命中率約 3–6 成。
   ODbL 僅在再散布時需標註，本機清單不觸發。
 
-## E. 第二階段構想：俯瞰模式螢幕辨識（**尚未實作，需使用者同意**）
+## E. 俯瞰模式螢幕辨識構想（2026-09-10 歷史紀錄）
+
+螢幕擷取與大花辨識現已實作，自動點擊領花蜜仍未實作。以下保留當時的構想、研究與風險評估。
 
 使用者 2026-09-10 指出：遊戲底部中央的**俯瞰模式**切換鈕，會把畫面變成接近正上方的平面地圖。
 這推翻了附錄 D1 中「畫面雜訊太多、鏡頭俯角不定」的部分論據：
@@ -354,7 +374,7 @@ Debug receiver 新指令：`goto --ei index`、`travel --es mode CAR|BIKE|HIGHWA
 `joystick --ez on --ef bearing --ef magnitude`、`set_custom_home --es home "lat,lon"`、
 `add_waypoint --es waypoint "lat,lon,name"`、`remove_waypoint --ei index`。
 
-**尚未實機驗證**（手機不在身邊時完成）：以上全部只跑過單元測試（`LiveControlsTest`，8 個）與編譯。
+**2026-09-12 當時的驗證範圍**：尚未實機驗證（手機不在身邊時完成），以上全部只跑過單元測試（`LiveControlsTest`，8 個）與編譯。最新結果見本文件開頭。
 下次接上手機要驗：(a) 設定改速度 → logcat `config changed`；(b) 走路中刪／加大花 → `re-planned`，畫面不跳；
 (c) 自訂家 → 開始直接出現在該點、回家後 `parked`、停止才跳回；(d) 汽機車 → 速度 45 km/h、抵達自動 `back to walking`；
 (e) 搖桿 → `joystick took over` / `put away`，關掉後接回路線。

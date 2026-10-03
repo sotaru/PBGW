@@ -108,6 +108,11 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <service
+            android:name=".service.RealGpsStepsService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
         <!-- Screen capture for the bird's-eye Big Flower scan. Only lives while a scan runs; the
              projection is released (cast icon gone) as soon as the scan stops. Reads pixels only,
              never injects input. -->

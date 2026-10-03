@@ -362,6 +362,12 @@ class MockLocationController(context: Context) {
 
     // ---------------------------------------------------------------- helpers
 
+    /** Also clear FLP mock mode left by a previous process before a real-GPS session. */
+    suspend fun releaseForRealLocation() {
+        stop()
+        if (isMockAppSelected()) withTimeoutOrNull(5000) { awaitTask(fused.setMockMode(false)) }
+    }
+
     private fun buildLocation(provider: String, s: Sample, now: Long, nanos: Long): Location =
         buildLocation(
             provider, s.position, s.speedMps, s.bearingDeg, s.accuracyM, s.altitudeM, now, nanos

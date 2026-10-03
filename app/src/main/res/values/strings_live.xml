@@ -43,6 +43,8 @@
 
     <!-- joystick -->
     <string name="label_joystick">搖桿</string>
+    <string name="dlg_joystick_speed_title">選擇這次搖桿的移動速度</string>
+    <string name="dlg_joystick_speed_msg">這次選擇只用於搖桿，關閉後沿用原本的巡邏速度。標示「不計步」的移動方式不會增加步數。</string>
     <string name="ovl_cd_joystick">搖桿</string>
     <string name="toast_joystick_on">搖桿已開啟：往上是北，按住並拖曳圓盤即可移動，放開即停。</string>
     <string name="toast_joystick_off">搖桿已關閉</string>

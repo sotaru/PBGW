@@ -39,8 +39,8 @@ android {
         applicationId "app.pikminbloom.gps"
         minSdk 28
         targetSdk 36
-        versionCode 5
-        versionName "1.2.3"
+        versionCode 7
+        versionName "1.2.5"
         manifestPlaceholders = [mapsApiKey: mapsApiKey]
         buildConfigField 'boolean', 'HAS_GOOGLE_MAPS_KEY', mapsApiKey ? 'true' : 'false'
 

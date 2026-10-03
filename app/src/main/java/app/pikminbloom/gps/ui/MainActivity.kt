@@ -31,12 +31,17 @@ import app.pikminbloom.gps.data.PatrolPhase
 import app.pikminbloom.gps.data.PatrolMode
 import app.pikminbloom.gps.data.PatrolState
 import app.pikminbloom.gps.data.Prefs
+import app.pikminbloom.gps.service.RealGpsStepsService
+import app.pikminbloom.gps.service.RealStepsPhase
+import app.pikminbloom.gps.service.RealStepsState
 import app.pikminbloom.gps.data.TravelMode
+import app.pikminbloom.gps.data.JoystickSpeeds
 import app.pikminbloom.gps.data.Waypoint
 import app.pikminbloom.gps.data.WaypointStore
 import app.pikminbloom.gps.databinding.ActivityMainBinding
 import app.pikminbloom.gps.geo.GeoMath
 import app.pikminbloom.gps.geo.LatLng
+import app.pikminbloom.gps.geo.GpsMotion
 import app.pikminbloom.gps.mock.MockLocationController
 import app.pikminbloom.gps.route.PatrolPlanner
 import app.pikminbloom.gps.route.SpiralRoute
@@ -80,6 +85,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     private lateinit var osmOverlays: MapOverlays
     private var googleLayer: GoogleMapLayer? = null
     private var mapProvider = MapProvider.OPENSTREETMAP
+    private var lastCenteredPosition = FALLBACK_CENTER
     private var googleSavedState: Bundle? = null
 
     private lateinit var locationLauncher: ActivityResultLauncher<String>
@@ -97,6 +103,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     /** Set when the overlay's 掃描 button opened us (EXTRA_START_SCAN); handled in onResume. */
     private var pendingScanRequest = false
     private var scanResultsDialog: androidx.appcompat.app.AlertDialog? = null
+    private var joystickSpeedDialog: androidx.appcompat.app.AlertDialog? = null
 
     private var locationCallback: ((Boolean) -> Unit)? = null
     private var notificationCallback: ((Boolean) -> Unit)? = null
@@ -237,6 +244,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     override fun onDestroy() {
+        joystickSpeedDialog?.dismiss()
         googleLayer?.onDestroy()
         runCatching { binding.map.onDetach() }
         super.onDestroy()
@@ -338,8 +346,8 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     private fun setupButtons() {
         binding.btnStart.setOnClickListener { showPatrolModeDialog() }
-        binding.btnPause.setOnClickListener { PatrolService.pause(this) }
-        binding.btnResume.setOnClickListener { PatrolService.resume(this) }
+        binding.btnPause.setOnClickListener { if (RealGpsStepsService.isRunning) RealGpsStepsService.pause(this) else PatrolService.pause(this) }
+        binding.btnResume.setOnClickListener { if (RealGpsStepsService.isRunning) RealGpsStepsService.resume(this) else PatrolService.resume(this) }
         binding.btnHome.setOnClickListener { PatrolService.returnHome(this) }
         binding.btnStop.setOnClickListener { confirmStop() }
         binding.btnTravel.setOnClickListener { showTravelDialog() }
@@ -348,6 +356,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     /** A plain stop leaves the game at the fake position (looks like a teleport); suggest 回家 first. */
     private fun confirmStop() {
+        if (RealGpsStepsService.isRunning) { RealGpsStepsService.stop(this); return }
         if (PatrolService.state.value.mode != PatrolMode.WAYPOINTS) {
             PatrolService.stop(this)
             return
@@ -388,10 +397,11 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
                     }
                 }
                 launch { PatrolService.state.collect { render(it) } }
+                launch { RealGpsStepsService.state.collect { render(PatrolService.state.value) } }
                 launch { PatrolService.events.collect { onEvent(it) } }
                 launch { FlowerScanner.state.collect { renderScan(it) } }
                 launch { PatrolService.travelOverride.collect { renderLiveControls() } }
-                launch { PatrolService.joystick.map { it.enabled }.distinctUntilChanged().collect { renderLiveControls() } }
+                launch { PatrolService.joystick.map { it.enabled to it.speedMode }.distinctUntilChanged().collect { renderLiveControls() } }
             }
         }
     }
@@ -399,16 +409,18 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     // ------------------------------------------------------------------ live controls (移動方式 / 搖桿)
 
     private fun renderLiveControls() {
-        val mode = PatrolService.travelOverride.value
+        show(binding.btnTravel, !RealGpsStepsService.isRunning)
+        show(binding.btnJoystick, !RealGpsStepsService.isRunning)
+        val mode = PatrolService.controlSpeedMode
         binding.btnTravel.text = travelLabel(mode, short = true)
-        binding.btnTravel.setIconResource(if (mode == null) R.drawable.ic_walk else R.drawable.ic_car)
+        binding.btnTravel.setIconResource(if (mode?.countsSteps != false) R.drawable.ic_walk else R.drawable.ic_car)
         binding.btnJoystick.isChecked = PatrolService.joystick.value.enabled
     }
 
     private fun travelLabel(mode: TravelMode?, short: Boolean = false): String {
         if (mode == null) {
             return if (short) getString(R.string.travel_short_walk)
-            else getString(R.string.travel_walk_configured, "%.0f".format(prefs.config().speedMps * 3.6))
+            else getString(R.string.travel_walk_configured, "%.1f".format(prefs.config().speedMps * 3.6))
         }
         val kmh = mode.speedKmh.toInt()
         return if (short) "${mode.label} $kmh km/h"
@@ -417,8 +429,9 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     /** 移動方式: pick the vehicle for the next leg. Applies immediately, before or during a patrol. */
     private fun showTravelDialog() {
-        val choices = PatrolService.OVERRIDE_CHOICES
-        val current = PatrolService.travelOverride.value
+        val manual = PatrolService.joystick.value.enabled
+        val choices = if (manual) JoystickSpeeds.choices else PatrolService.OVERRIDE_CHOICES
+        val current = PatrolService.controlSpeedMode
         // An AlertDialog shows either a message or a list, never both, so build the two by hand.
         val pad = resources.getDimensionPixelSize(R.dimen.space_xl)
         val column = android.widget.LinearLayout(this).apply {
@@ -426,7 +439,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             setPadding(pad, pad / 2, pad, 0)
         }
         column.addView(android.widget.TextView(this).apply {
-            text = getString(R.string.dlg_travel_msg)
+            text = getString(if (manual) R.string.dlg_joystick_speed_msg else R.string.dlg_travel_msg)
             setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
             setPadding(0, 0, 0, pad / 2)
         })
@@ -442,7 +455,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         }
         column.addView(group)
         val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.dlg_travel_title)
+            .setTitle(if (manual) R.string.dlg_joystick_speed_title else R.string.dlg_travel_title)
             .setView(android.widget.ScrollView(this).apply { addView(column) })
             .setNegativeButton(R.string.action_cancel, null)
             .show()
@@ -470,12 +483,12 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
                 toggleOverlay()
             }
             else -> {
-                OverlayService.showJoystick(this)
-                toast(getString(when {
-                    PatrolService.state.value.phase == PatrolPhase.PAUSED -> R.string.toast_joystick_paused
-                    PatrolService.isRunning -> R.string.toast_joystick_on
-                    else -> R.string.toast_joystick_need_patrol
-                }))
+                if (joystickSpeedDialog?.isShowing != true) {
+                    joystickSpeedDialog = JoystickSpeedDialog.show(this,
+                        onDismiss = { joystickSpeedDialog = null; renderLiveControls() }) { speedMode ->
+                        if (!PatrolService.joystick.value.enabled) OverlayService.showJoystick(this, speedMode)
+                    }
+                }
             }
         }
         // The checkable button flipped itself on the tap; the flow is the truth.
@@ -504,6 +517,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     private fun center(p: LatLng, resetZoom: Boolean = false) {
+        lastCenteredPosition = p
         if (mapProvider == MapProvider.GOOGLE) {
             googleLayer?.center(p, if (resetZoom) DEFAULT_ZOOM else null, animate = !resetZoom)
             return
@@ -543,7 +557,10 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             toast(getString(R.string.google_maps_services_needed))
             return
         }
-        val currentCenter = mapCenter()
+        // OSM cannot report its requested center until its first layout has completed.
+        val currentCenter = if (mapProvider == MapProvider.OPENSTREETMAP && !binding.map.isLaidOut) {
+            lastCenteredPosition
+        } else mapCenter()
         val zoom = if (mapProvider == MapProvider.GOOGLE) googleLayer!!.currentZoom() else binding.map.zoomLevelDouble
         if (provider == MapProvider.GOOGLE) {
             if (googleLayer == null) {
@@ -667,6 +684,11 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     // ------------------------------------------------------------------ state rendering
 
     private fun render(state: PatrolState) {
+        val realSteps = RealGpsStepsService.state.value
+        if (!PatrolService.isRunning && realSteps.sessionId != 0L) {
+            renderRealSteps(realSteps)
+            return
+        }
         val home = state.home ?: prefs.customHome ?: prefs.home
         if (home != currentHome || renderedMode != state.mode || renderedSpiralCenter != state.spiralCenter || renderedSpiralWidth != state.spiralLineWidthM) {
             currentHome = home
@@ -676,6 +698,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             rebuildOverlays()
         }
         renderStatus(state)
+        renderLiveControls()
         renderButtons(state.phase)
         renderPosition(state)
         syncOverlay(state.phase)
@@ -683,6 +706,46 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     private var renderedMode: PatrolMode? = null
+
+    private var realStepsCenteredSession = 0L
+    private fun renderRealSteps(state: RealStepsState) {
+        renderedMode = null // Restore route markers when the next normal patrol starts.
+        binding.tvPhase.setText(when (state.phase) {
+            RealStepsPhase.COMPLETED -> R.string.real_steps_complete
+            RealStepsPhase.STOPPED -> R.string.real_steps_stopped
+            RealStepsPhase.PAUSED -> R.string.real_steps_paused
+            RealStepsPhase.FINISHING -> R.string.real_steps_finishing
+            else -> R.string.real_steps_title
+        })
+        binding.tvDetails.text = listOf(
+            getString(R.string.real_steps_written, state.written, state.target),
+            getString(R.string.real_steps_generated, state.generated, state.pending),
+            getString(R.string.real_steps_rate_status, state.rate),
+            getString(R.string.real_steps_jitter_status, state.jitterPct, state.currentRate),
+            getString(when (state.motion) {
+                GpsMotion.MOVING -> R.string.real_steps_motion_moving
+                GpsMotion.STATIONARY -> R.string.real_steps_motion_stationary
+                GpsMotion.UNKNOWN -> R.string.real_steps_motion_unknown
+            }),
+            getString(if (state.position == null) R.string.real_steps_gps_waiting else R.string.real_steps_gps_ready),
+        ).joinToString("\n")
+        binding.tvError.visibility = if (state.error.isNullOrBlank()) View.GONE else View.VISIBLE
+        binding.tvError.text = state.error.orEmpty()
+        show(binding.btnStart, !state.active)
+        show(binding.btnPause, state.phase == RealStepsPhase.RUNNING)
+        show(binding.btnResume, state.phase == RealStepsPhase.PAUSED)
+        binding.btnResume.setText(R.string.btn_resume)
+        show(binding.btnStop, state.active)
+        show(binding.btnHome, false)
+        renderLiveControls()
+        overlays.rebuildStatic(emptyList(), null, emptyList())
+        overlays.updateTrail(emptyList())
+        overlays.updatePosition(state.position, 0f)
+        if (state.position != null && realStepsCenteredSession != state.sessionId) {
+            realStepsCenteredSession = state.sessionId
+            center(state.position, resetZoom = true)
+        }
+    }
     private var renderedSpiralCenter: LatLng? = null
     private var renderedSpiralWidth: Double? = null
 
@@ -913,7 +976,9 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         if (previous == phase) return
         when {
             phase != PatrolPhase.IDLE ->
-                if (prefs.overlayEnabled && Permissions.canDrawOverlays(this)) OverlayService.start(this)
+                if (prefs.overlayEnabled && Permissions.canDrawOverlays(this)) {
+                    OverlayService.startAutomatically(this, newPatrol = previous == PatrolPhase.IDLE || phase == PatrolPhase.STARTING)
+                }
 
             previous != null && !prefs.overlayPinned -> OverlayService.stop(this)
         }
@@ -922,8 +987,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     /** Menu toggle: show the bar right now (pinned, so it stays after the patrol) or hide it. */
     private fun toggleOverlay() {
         if (OverlayService.isRunning) {
-            prefs.overlayPinned = false
-            OverlayService.stop(this)
+            OverlayService.dismiss(this)
             toast(getString(R.string.toast_overlay_hidden))
             return
         }
@@ -1067,6 +1131,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         R.id.action_home -> { showHomeDialog(); true }
         R.id.action_jump_coords -> { promptJumpCoords(); true }
         R.id.action_spiral -> { startSpiral(); true }
+        R.id.action_real_steps -> { startRealGpsSteps(); true }
         R.id.action_map_provider -> { showMapProviderDialog(); true }
         R.id.action_import -> { importLauncher.launch(arrayOf(MIME_ANY)); true }
         R.id.action_export_json -> { exportJsonLauncher.launch(getString(R.string.export_json_filename)); true }
@@ -1095,14 +1160,47 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     private fun showPatrolModeDialog() {
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.dlg_patrol_mode)
-            .setItems(arrayOf(getString(R.string.mode_waypoints), getString(R.string.mode_spiral))) { _, which ->
-                if (which == 0) startPatrol(0) else startSpiral()
+            .setItems(arrayOf(getString(R.string.mode_waypoints), getString(R.string.mode_spiral), getString(R.string.real_steps_title))) { _, which ->
+                when (which) { 0 -> startPatrol(0); 1 -> startSpiral(); else -> startRealGpsSteps() }
             }
             .setNegativeButton(R.string.action_cancel, null)
             .show()
     }
 
+    private fun startRealGpsSteps() {
+        if (PatrolService.isRunning || RealGpsStepsService.isRunning) {
+            toast(getString(R.string.real_steps_busy))
+            return
+        }
+        RealGpsStepsDialog.show(this, prefs) { target, rate ->
+            lifecycleScope.launch {
+                if (!Permissions.hasFineLocation(this@MainActivity)) {
+                    val grant = ask(R.string.dlg_need_location_title, R.string.dlg_need_location_msg, R.string.action_grant)
+                    if (!grant || !requestLocationPermission()) return@launch
+                }
+                if (Build.VERSION.SDK_INT >= 33 && !Permissions.hasNotifications(this@MainActivity)) {
+                    if (ask(R.string.dlg_need_notification_title, R.string.dlg_need_notification_msg,
+                            R.string.action_grant, R.string.action_continue)) requestNotificationPermission()
+                }
+                if (!steps.isAvailable) {
+                    ask(R.string.dlg_hc_unavailable_title, R.string.real_steps_health_required, R.string.action_ok, null)
+                    return@launch
+                }
+                if (!steps.grantedPermissions().containsAll(steps.stepPermissions)) {
+                    if (!ask(R.string.dlg_hc_permission_title, R.string.real_steps_health_required, R.string.action_grant) ||
+                        !requestHealthPermissions(steps.stepPermissions)) return@launch
+                }
+                if (PatrolService.isRunning || RealGpsStepsService.isRunning) {
+                    toast(getString(R.string.real_steps_busy))
+                    return@launch
+                }
+                RealGpsStepsService.start(this@MainActivity, target, rate)
+            }
+        }
+    }
+
     private fun startSpiral() {
+        if (RealGpsStepsService.isRunning) { toast(getString(R.string.real_steps_busy)); return }
         val input = android.widget.EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
             setSingleLine()
@@ -1343,6 +1441,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     /** Runs every check in order, offering the fix for each. Returns false when the patrol must not start. */
     private suspend fun preflight(requireWaypoints: Boolean = true, checkHealth: Boolean = true): Boolean {
+        if (RealGpsStepsService.isRunning) { toast(getString(R.string.real_steps_busy)); return false }
         // 1. Precise location — mandatory (the service captures "home" from the real GPS).
         if (!Permissions.hasFineLocation(this)) {
             val go = ask(R.string.dlg_need_location_title, R.string.dlg_need_location_msg, R.string.action_grant)
@@ -1426,9 +1525,9 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         notificationLauncher.launch(NOTIFICATION_PERMISSION)
     }
 
-    private suspend fun requestHealthPermissions(): Boolean = suspendCancellableCoroutine { cont ->
-        healthCallback = { granted -> if (cont.isActive) cont.resume(granted.containsAll(steps.requiredPermissions)) }
-        healthLauncher.launch(steps.requiredPermissions)
+    private suspend fun requestHealthPermissions(required: Set<String> = steps.requiredPermissions): Boolean = suspendCancellableCoroutine { cont ->
+        healthCallback = { granted -> if (cont.isActive) cont.resume(granted.containsAll(required)) }
+        healthLauncher.launch(required)
     }
 
     private suspend fun ask(

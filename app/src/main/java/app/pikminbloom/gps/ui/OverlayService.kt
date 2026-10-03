@@ -66,6 +66,7 @@ class OverlayService : Service() {
 
     private var binding: OverlayBarBinding? = null
     private var joystick: OverlayJoystickBinding? = null
+    private var joystickSpeedDialog: androidx.appcompat.app.AlertDialog? = null
     private lateinit var joystickParams: WindowManager.LayoutParams
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val handler = Handler(Looper.getMainLooper())
@@ -132,8 +133,13 @@ class OverlayService : Service() {
             return START_NOT_STICKY
         }
         if (intent?.getBooleanExtra(EXTRA_SHOW_JOYSTICK, false) == true) {
-            if (addJoystickWindow()) PatrolService.setJoystickEnabled(true)
-            setExpanded(true)
+            if (intent.hasExtra(EXTRA_JOYSTICK_SPEED)) {
+                val name = intent.getStringExtra(EXTRA_JOYSTICK_SPEED)
+                val speedMode = name?.let { runCatching { TravelMode.valueOf(it) }.getOrNull() }
+                activateJoystick(speedMode)
+            } else {
+                requestJoystickSpeed()
+            }
         }
         if (intent?.hasExtra(EXTRA_PINNED) == true) {
             pinned = intent.getBooleanExtra(EXTRA_PINNED, false)
@@ -151,6 +157,7 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
+        joystickSpeedDialog?.dismiss()
         isRunning = false
         handler.removeCallbacksAndMessages(null)
         scope.cancel()
@@ -225,6 +232,10 @@ class OverlayService : Service() {
         b.btnVehicle.setOnClickListener { onVehicleClicked() }
         b.btnJoystick.setOnClickListener { onJoystickClicked() }
         b.btnOpen.setOnClickListener { openMainActivity() }
+        b.btnClose.setOnClickListener {
+            dismiss(this)
+            toast(R.string.toast_overlay_hidden)
+        }
     }
 
     /** Cycles the vehicle override; the status line says which one is now in force. */
@@ -246,15 +257,26 @@ class OverlayService : Service() {
             removeJoystickWindow()
             toast(R.string.toast_joystick_off)
         } else {
-            if (!addJoystickWindow()) return
-            PatrolService.setJoystickEnabled(true)
-            toast(when {
-                PatrolService.state.value.phase == PatrolPhase.PAUSED -> R.string.toast_joystick_paused
-                PatrolService.isRunning -> R.string.toast_joystick_on
-                else -> R.string.toast_joystick_need_patrol
-            })
+            requestJoystickSpeed()
         }
         render(PatrolService.state.value)
+    }
+
+    private fun requestJoystickSpeed() {
+        if (joystickSpeedDialog?.isShowing == true) return
+        joystickSpeedDialog = JoystickSpeedDialog.show(this, overlay = true,
+            onDismiss = { joystickSpeedDialog = null }) { speedMode -> activateJoystick(speedMode) }
+    }
+
+    private fun activateJoystick(speedMode: TravelMode?) {
+        if (PatrolService.joystick.value.enabled || !addJoystickWindow()) return
+        PatrolService.setJoystickEnabled(true, speedMode)
+        setExpanded(true)
+        toast(when {
+            PatrolService.state.value.phase == PatrolPhase.PAUSED -> R.string.toast_joystick_paused
+            PatrolService.isRunning -> R.string.toast_joystick_on
+            else -> R.string.toast_joystick_need_patrol
+        })
     }
 
     /** The pad sits at the bottom-left corner, clear of the game's own bottom-centre buttons. */
@@ -427,7 +449,7 @@ class OverlayService : Service() {
         }
         scope.launch { PatrolService.travelOverride.collect { render(PatrolService.state.value) } }
         scope.launch {
-            PatrolService.joystick.map { it.enabled }.distinctUntilChanged().collect { enabled ->
+            PatrolService.joystick.map { it.enabled to it.speedMode }.distinctUntilChanged().collect { (enabled, _) ->
                 // The service drops the joystick on 回家 / 停止; take the pad down with it.
                 if (!enabled) removeJoystickWindow()
                 render(PatrolService.state.value)
@@ -518,10 +540,10 @@ class OverlayService : Service() {
         enable(b.btnToggle, moving || paused)
         enable(b.btnHome, state.home != null && (moving || state.phase == PatrolPhase.PAUSED || state.phase == PatrolPhase.HOLDING))
         // Vehicle icon shows what is in force; joystick icon lights up while the pad is out.
-        val vehicle = PatrolService.travelOverride.value
-        b.btnVehicle.setImageResource(if (vehicle == null) R.drawable.ic_walk else R.drawable.ic_car)
+        val vehicle = PatrolService.controlSpeedMode
+        b.btnVehicle.setImageResource(if (vehicle?.countsSteps != false) R.drawable.ic_walk else R.drawable.ic_car)
         b.btnVehicle.imageTintList = ColorStateList.valueOf(
-            ContextCompat.getColor(this, if (vehicle == null) R.color.overlay_icon else R.color.overlay_phase_paused),
+            ContextCompat.getColor(this, if (vehicle?.countsSteps != false) R.color.overlay_icon else R.color.overlay_phase_paused),
         )
         val pad = PatrolService.joystick.value.enabled
         b.btnJoystick.imageTintList = ColorStateList.valueOf(
@@ -611,6 +633,7 @@ class OverlayService : Service() {
         private const val TAG = "PikminGPS"
         private const val EXTRA_PINNED = "pinned"
         private const val EXTRA_SHOW_JOYSTICK = "show_joystick"
+        private const val EXTRA_JOYSTICK_SPEED = "joystick_speed"
         private const val MIN_RENDER_INTERVAL_MS = 500L
         private const val IDLE_HIDE_MS = 3_000L
         private const val FLASH_MS = 8_000L
@@ -625,6 +648,14 @@ class OverlayService : Service() {
         var isRunning: Boolean = false
             private set
 
+        /** A user dismissal lasts for this patrol, including pause/resume and activity recreation. */
+        private var dismissedForPatrol = false
+
+        fun startAutomatically(context: Context, newPatrol: Boolean) {
+            if (newPatrol) dismissedForPatrol = false
+            if (!dismissedForPatrol) start(context)
+        }
+
         /**
          * Shows the bar. [pinned] = true keeps it on screen after the patrol stops (manual toggle);
          * null leaves the stored pin state alone. Does nothing without the overlay permission.
@@ -634,6 +665,7 @@ class OverlayService : Service() {
                 Log.w(TAG, "overlay not started: no SYSTEM_ALERT_WINDOW permission")
                 return
             }
+            dismissedForPatrol = false
             val intent = Intent(context, OverlayService::class.java)
             if (pinned != null) intent.putExtra(EXTRA_PINNED, pinned)
             runCatching { context.startService(intent) }
@@ -641,12 +673,22 @@ class OverlayService : Service() {
         }
 
         /** Puts the joystick pad up (starting the bar if needed). No-op without the overlay permission. */
-        fun showJoystick(context: Context) {
+        fun showJoystick(context: Context, speedMode: TravelMode?) {
             if (!Permissions.canDrawOverlays(context)) return
+            dismissedForPatrol = false
             // Pinned as well: an idle bar would otherwise hide itself (and the pad) three seconds later.
             val intent = Intent(context, OverlayService::class.java).putExtra(EXTRA_SHOW_JOYSTICK, true).putExtra(EXTRA_PINNED, true)
+                .putExtra(EXTRA_JOYSTICK_SPEED, speedMode?.name ?: "")
             runCatching { context.startService(intent) }
                 .onFailure { Log.w(TAG, "startService(OverlayService, joystick) failed", it) }
+        }
+
+        /** Hide both windows without stopping the patrol or changing the automatic-show setting. */
+        fun dismiss(context: Context) {
+            dismissedForPatrol = true
+            Prefs(context).overlayPinned = false
+            PatrolService.setJoystickEnabled(false)
+            stop(context)
         }
 
         fun stop(context: Context) {

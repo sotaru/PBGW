@@ -246,6 +246,7 @@
     <string name="ovl_cd_home">回家</string>
     <string name="ovl_cd_stop">停止</string>
     <string name="ovl_cd_open">開啟主畫面</string>
+    <string name="ovl_cd_close">關閉浮動視窗</string>
 
     <string-array name="loop_mode_entries">
         <item>循環</item>

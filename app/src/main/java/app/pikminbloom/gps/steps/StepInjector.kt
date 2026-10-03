@@ -26,8 +26,8 @@ import java.time.ZoneId
  * Writes the simulated walk into Health Connect as [StepsRecord] + [DistanceRecord] so that
  * Pikmin Bloom (set to "Health Connect" in 設定 → 隱私權&步數 → 步數) can read it.
  *
- * Records are stamped `autoRecorded` from a `TYPE_PHONE` device so they look like the handset's own
- * pedometer; manual entries are known to be discarded by Niantic in Google Fit mode.
+ * The existing simulated-walk mode uses autoRecorded metadata. Time-based user-entered steps use
+ * manualEntry metadata; writing a record does not guarantee that another app will count it.
  */
 class StepInjector(context: Context) {
 
@@ -38,9 +38,11 @@ class StepInjector(context: Context) {
     val isAvailable: Boolean get() = sdkStatus == HealthConnectClient.SDK_AVAILABLE
     val needsProviderUpdate: Boolean get() = sdkStatus == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
 
-    val requiredPermissions: Set<String> = setOf(
+    val stepPermissions: Set<String> = setOf(
         HealthPermission.getWritePermission(StepsRecord::class),
         HealthPermission.getReadPermission(StepsRecord::class),
+    )
+    val requiredPermissions: Set<String> = stepPermissions + setOf(
         HealthPermission.getWritePermission(DistanceRecord::class),
         HealthPermission.getReadPermission(DistanceRecord::class),
     )
@@ -71,6 +73,7 @@ class StepInjector(context: Context) {
     suspend fun write(
         start: Instant, end: Instant, steps: Long, distanceM: Double,
         recordId: String? = null, zone: ZoneId = ZoneId.systemDefault(),
+        manualEntry: Boolean = false,
     ): Boolean {
         val hc = client ?: run { Log.w(TAG, "write: Health Connect unavailable"); return false }
         if (steps <= 0) return true
@@ -106,7 +109,9 @@ class StepInjector(context: Context) {
                         endTime = chunkEnd,
                         endZoneOffset = endOff,
                         count = chunkSteps.coerceIn(1, 1_000_000),
-                        metadata = Metadata.autoRecorded(
+                        metadata = if (manualEntry) Metadata.manualEntry(
+                            clientRecordId = "$CLIENT_PREFIX-steps-${recordId ?: cursor.toEpochMilli()}-$i",
+                        ) else Metadata.autoRecorded(
                             device = device,
                             clientRecordId = "$CLIENT_PREFIX-steps-${recordId ?: cursor.toEpochMilli()}-$i",
                         ),

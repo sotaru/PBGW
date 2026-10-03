@@ -1,4 +1,8 @@
-# Bird's-eye capture set — provenance and calibration
+# 俯瞰模式測試截圖：來源與校準
+
+本資料夾用於大花螢幕辨識與地圖校準。GPS 移動分析與定時步數使用獨立的合成資料測試，不依賴這些截圖；缺少圖片時，相關 GPS 與步數測試仍會執行。一般操作見 [README](../../../../../README.md)，目前測試與交接方式見 [開發環境說明](../../../../../docs/DEV_SETUP.md)。
+
+以下保留原始裝置、日期、像素、位移與校準紀錄。PNG 留在本機，不納入 Git。
 
 Real Pikmin Bloom screenshots used to validate `app/src/main/java/app/pikminbloom/gps/vision/`.
 Captured 2026-09-10 12:09–12:26 CST on **POCO X6 Pro** (`PFQCKJPJSWJVB6JR`), screen **1220 × 2712**,

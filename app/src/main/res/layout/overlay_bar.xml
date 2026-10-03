@@ -45,19 +45,38 @@
 
         <!-- Fixed width + uniform auto-sizing: the bar keeps one predictable size and the line
              shrinks instead of being truncated when the user runs a large system font scale. -->
-        <TextView
-            android:id="@+id/status"
+        <LinearLayout
             android:layout_width="@dimen/overlay_status_max"
-            android:layout_height="20dp"
+            android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:autoSizeMaxTextSize="11sp"
-            android:autoSizeMinTextSize="7sp"
-            android:autoSizeStepGranularity="1sp"
-            android:autoSizeTextType="uniform"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:textColor="@color/overlay_text"
-            android:textSize="11sp" />
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/status"
+                android:layout_width="0dp"
+                android:layout_height="20dp"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:autoSizeMaxTextSize="11sp"
+                android:autoSizeMinTextSize="7sp"
+                android:autoSizeStepGranularity="1sp"
+                android:autoSizeTextType="uniform"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="@color/overlay_text"
+                android:textSize="11sp" />
+
+            <ImageButton
+                android:id="@+id/btnClose"
+                android:layout_width="@dimen/overlay_button"
+                android:layout_height="@dimen/overlay_button"
+                android:background="@drawable/bg_overlay_button"
+                android:contentDescription="@string/ovl_cd_close"
+                android:padding="@dimen/space_xs"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_close"
+                android:tint="@color/overlay_icon" />
+        </LinearLayout>
 
         <LinearLayout
             android:id="@+id/buttons"

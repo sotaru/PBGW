@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="real_steps_title">真實 GPS 步數模式</string>
+    <string name="real_steps_start">開始增加步數</string>
+    <string name="real_steps_explanation">GPS 使用手機真實定位，不模擬移動。依指定速率逐步寫入你設定的步數，這些步數不是手機感測器量測的紀錄。達到目標後自動停止。</string>
+    <string name="real_steps_target">本次目標步數（1～200000）</string>
+    <string name="real_steps_rate">每分鐘增加步數（1～180）</string>
+    <string name="real_steps_invalid_target">請輸入 1～200000 的整數</string>
+    <string name="real_steps_invalid_rate">請輸入 1～180 的整數</string>
+    <string name="real_steps_written">本次已寫入：%1$d / %2$d 步</string>
+    <string name="real_steps_generated">已累計：%1$d 步；待寫入：%2$d 步</string>
+    <string name="real_steps_rate_status">基準每分鐘 %1$d 步；沿用設定中的每日寫入上限</string>
+    <string name="real_steps_jitter_help">步數抖動沿用「設定 → 速度抖動」：±%1$.0f%%。GPS 判斷移動時偏多、停止時偏少；0%% 為固定速率。</string>
+    <string name="real_steps_jitter_status">步數抖動 ±%1$.0f%%；目前約 %2$.1f 步／分</string>
+    <string name="real_steps_motion_moving">GPS 判斷：移動中（抖動偏多）</string>
+    <string name="real_steps_motion_stationary">GPS 判斷：停止中（抖動偏少）</string>
+    <string name="real_steps_motion_unknown">GPS 判斷：判斷中或訊號不足（一般抖動）</string>
+    <string name="real_steps_gps_waiting">GPS：等待手機真實定位</string>
+    <string name="real_steps_gps_ready">GPS：手機真實定位</string>
+    <string name="real_steps_complete">本次步數目標已完成</string>
+    <string name="real_steps_paused">真實 GPS 步數模式：已暫停</string>
+    <string name="real_steps_finishing">目標步數已排程，等待 Health Connect 寫入</string>
+    <string name="real_steps_stopped">真實 GPS 步數模式：已停止</string>
+    <string name="real_steps_health_required">此模式需要可用的 Health Connect，以及讀寫步數權限。</string>
+    <string name="real_steps_busy">請先停止目前模式，再啟動其他模式。</string>
+    <string name="real_steps_daily_limit">已達今日步數寫入上限，本次已停止；尚未完成的目標不會突破每日上限。</string>
+    <string name="real_steps_cadence_limit">設定中的每分鐘寫入上限是 %1$d 步，請調低本次速率或先修改設定。</string>
+    <string name="real_steps_start_failed">無法開始：%1$s</string>
+    <string name="real_steps_interrupted">模式已中斷。已保存的待寫入步數會在下次啟動此模式時重試，不會補計中斷期間。</string>
+</resources>

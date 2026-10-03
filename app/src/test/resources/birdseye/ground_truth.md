@@ -1,8 +1,10 @@
-# Bird's-eye capture set — ground truth
+# 俯瞰模式截圖：人工標註資料
 
 Captured 2026-09-10 12:09–12:26 CST on the POCO X6 Pro (`PFQCKJPJSWJVB6JR`), Pikmin Bloom,
 screen **1220 × 2712**. All coordinates below are **full-resolution pixels of the PNG**,
 origin top-left, read off by hand from 1:1 crops.
+
+以下座標是歷史截圖的像素標註，不是實機 GPS 位置。GPS 移動判斷另由 `GpsMotionAnalyzerTest` 驗證；本次保留原有像素、顏色統計與標註結果。資料來源與校準方式見 [README](README.md)，目前操作見 [專案說明](../../../../../README.md)。
 
 For each Big Flower two points are given:
 
@@ -145,6 +147,8 @@ Taken exactly 40 s apart as originally specified. At the app's configured 20 km/
 **230 m**, which at 0.315 m/px is 731 px — more than the usable overlap of the frame, so the
 two frames share almost no features and no calibration can be derived from them.
 Superseded by `cal_a`/`cal_b` (11 s, 60 m).
+
+時間註記：11 秒是重拍步驟中的移動等待時間；README 的截圖時間為 12:25:56.769 與 12:26:17.432，相差約 20.7 秒。校準位移與取樣時間請以來源紀錄為準，原句保留作為當時的操作紀錄。
 
 ## Measured colours (be_1, HSV, H in degrees, S/V in 0..1)
 

@@ -10,6 +10,7 @@ import app.pikminbloom.gps.data.WaypointStore
 import app.pikminbloom.gps.geo.LatLng
 import app.pikminbloom.gps.mock.MockLocationController
 import app.pikminbloom.gps.service.PatrolService
+import app.pikminbloom.gps.service.RealGpsStepsService
 import app.pikminbloom.gps.steps.StepInjector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +35,22 @@ class DebugCommandReceiver : BroadcastReceiver() {
         val prefs = Prefs(context)
         val store = WaypointStore.get(context)
         when (cmd) {
+            "start_real_steps" -> {
+                val target = intent.getLongExtra("target", 0)
+                val rate = intent.getIntExtra("rate", 0)
+                if (target in 1..200_000 && rate in 1..180) RealGpsStepsService.start(context, target, rate,
+                    intent.getBooleanExtra("start_paused", false))
+            }
+            "pause_real_steps" -> RealGpsStepsService.pause(context)
+            "resume_real_steps" -> RealGpsStepsService.resume(context)
+            "stop_real_steps" -> RealGpsStepsService.stop(context)
+            "real_steps_status" -> {
+                val s = RealGpsStepsService.state.value
+                Log.i(TAG, "REAL_STEPS " + JSONObject().put("phase", s.phase.name).put("target", s.target)
+                    .put("rate", s.rate).put("generated", s.generated).put("written", s.written)
+                    .put("pending", s.pending).put("realGpsFix", s.position != null).put("error", s.error)
+                    .put("jitterPct", s.jitterPct).put("currentRate", s.currentRate).put("motion", s.motion.name))
+            }
             "set_home" -> {
                 val h = parseLatLng(intent.getStringExtra("home"))
                 prefs.home = h

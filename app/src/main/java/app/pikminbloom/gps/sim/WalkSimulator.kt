@@ -241,15 +241,18 @@ class WalkSimulator(
     /**
      * Joystick tick: moves [magnitude] (0..1) of the current speed along [bearingDeg] from wherever
      * we are, ignoring the loaded plan. The plan is left untouched; the caller re-plans from
-     * [current] when the joystick is put away. Speed and step accounting follow [travelOverride]
-     * exactly like a planned leg would.
+     * [current] when the joystick is put away. An explicit [speedMode] is local to manual motion;
+     * the automatic route's [travelOverride] stays unchanged. Null uses the configured walking speed.
      */
-    fun advanceManual(dtSec: Double, bearingDeg: Double, magnitude: Double): Sample {
+    fun advanceManual(
+        dtSec: Double, bearingDeg: Double, magnitude: Double,
+        speedMode: TravelMode? = travelOverride,
+    ): Sample {
         val dt = dtSec.coerceIn(0.0, 5.0)
         redrawJitter(dt)
         drift()
         val from = manualPos ?: exactPosition()
-        val speed = legDefaultSpeed * speedFactor * magnitude.coerceIn(0.0, 1.0)
+        val speed = (speedMode?.speedMps ?: targetSpeed) * speedFactor * magnitude.coerceIn(0.0, 1.0)
         val step = speed * dt
         val to = if (step > 1e-6) GeoMath.destination(from, bearingDeg, step) else from
         manualPos = to
@@ -268,7 +271,7 @@ class WalkSimulator(
             arrivedAtWaypoint = null,
             lapFinished = false,
             progressM = progress,
-            countsSteps = travelOverride?.countsSteps ?: true,
+            countsSteps = speedMode?.countsSteps ?: true,
         )
         return lastSample
     }

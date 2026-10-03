@@ -16,6 +16,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import app.pikminbloom.gps.R
 import app.pikminbloom.gps.data.PatrolConfig
+import app.pikminbloom.gps.data.JoystickSpeeds
 import app.pikminbloom.gps.data.PatrolMode
 import app.pikminbloom.gps.data.PatrolPhase
 import app.pikminbloom.gps.data.PatrolState
@@ -93,6 +94,7 @@ class PatrolService : LifecycleService() {
     private var home: LatLng? = null
     private var mode = PatrolMode.WAYPOINTS
     private var spiral: SpiralRoute? = null
+    private var manualSpeedMode: TravelMode? = null
 
     /** True when [home] is the user's chosen one: 回家 parks there instead of releasing the mock. */
     private var parkAtHome = false
@@ -148,13 +150,28 @@ class PatrolService : LifecycleService() {
         lifecycleScope.launch(engine) { store.waypoints.collect { onWaypointsChanged(it) } }
         lifecycleScope.launch(engine) { _travelOverride.collect { onTravelOverrideChanged(it) } }
         lifecycleScope.launch(engine) {
-            _joystick.map { it.enabled }.distinctUntilChanged().collect { onJoystickToggled(it) }
+            _joystick.map { it.enabled to it.speedMode }.distinctUntilChanged().collect { (enabled, speedMode) ->
+                onJoystickToggled(enabled)
+                if (enabled && state.value.phase == PatrolPhase.MANUAL && manualSpeedMode != speedMode) {
+                    advanceManualTo(SystemClock.elapsedRealtime())
+                    manualSpeedMode = speedMode
+                }
+                _state.update { it.copy(travelOverride = if (enabled) speedMode else _travelOverride.value) }
+                lastNotificationMs = 0
+            }
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         val action = intent?.action
+        if (RealGpsStepsService.isRunning) {
+            // Satisfy any foreground-start obligation, then reject all mock-location actions.
+            if (action in setOf(ACTION_START, ACTION_TELEPORT, ACTION_SPIRAL, ACTION_RESUME_CHECKPOINT)) goForeground()
+            _events.tryEmit(PatrolEvent.Error(getString(R.string.real_steps_busy)))
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (action == ACTION_START || action == ACTION_TELEPORT || action == ACTION_SPIRAL) {
             handleStart(intent)
             return START_NOT_STICKY
@@ -316,7 +333,8 @@ class PatrolService : LifecycleService() {
         val first = plan.segments.firstOrNull()
         _state.update {
             it.copy(mode = mode, phase = if (mode == PatrolMode.HOLD) PatrolPhase.HOLDING else phaseFor(first?.kind ?: SegmentKind.TRAVEL),
-                position = from, speedMps = 0.0, spiralCenter = spiral?.center, spiralRadiusM = 0.0,
+                position = from, speedMps = 0.0, travelOverride = _travelOverride.value,
+                spiralCenter = spiral?.center, spiralRadiusM = 0.0,
                 spiralLineWidthM = spiral?.lineWidthM ?: prefs.spiralLineWidthM,
                 spiralSpacingM = spiral?.spacingM ?: SpiralRoute.spacingForWidth(prefs.spiralLineWidthM),
                 currentWaypointIndex = first?.waypointIndex ?: -1,
@@ -646,7 +664,7 @@ class PatrolService : LifecycleService() {
     private fun advanceManualTo(nowMs: Long) {
         var last: Sample? = null
         for (input in manualInput.consume(nowMs)) {
-            val sample = sim.advanceManual(input.durationMs / 1000.0, input.bearingDeg, input.magnitude)
+            val sample = sim.advanceManual(input.durationMs / 1000.0, input.bearingDeg, input.magnitude, manualSpeedMode)
             account(sample)
             last = sample
         }
@@ -933,7 +951,7 @@ class PatrolService : LifecycleService() {
     private fun applyTravelOverride(mode: TravelMode?, automatic: Boolean) {
         if (state.value.phase == PatrolPhase.MANUAL) advanceManualTo(SystemClock.elapsedRealtime())
         sim.travelOverride = mode
-        _state.update { it.copy(travelOverride = mode) }
+        _state.update { it.copy(travelOverride = if (_joystick.value.enabled) _joystick.value.speedMode else mode) }
         lastNotificationMs = 0
         _events.tryEmit(PatrolEvent.TravelModeChanged(mode, automatic))
         Log.i(TAG, "travel override → ${mode ?: "walk"} (${if (automatic) "auto" else "user"})")
@@ -952,9 +970,10 @@ class PatrolService : LifecycleService() {
 
     private fun enterManual() {
         val input = _joystick.value
+        manualSpeedMode = input.speedMode
         manualInput.start(SystemClock.elapsedRealtime(), input.bearingDeg, if (input.enabled) input.magnitude else 0.0)
         _state.update {
-            it.copy(phase = PatrolPhase.MANUAL, currentWaypointIndex = -1,
+            it.copy(phase = PatrolPhase.MANUAL, travelOverride = manualSpeedMode, currentWaypointIndex = -1,
                 currentWaypointName = getString(R.string.svc_target_joystick), distanceToTargetM = 0.0)
         }
         lastNotificationMs = 0
@@ -965,6 +984,7 @@ class PatrolService : LifecycleService() {
     private fun leaveManual() {
         if (state.value.phase == PatrolPhase.MANUAL) advanceManualTo(SystemClock.elapsedRealtime())
         manualInput.stop()
+        _state.update { it.copy(travelOverride = _travelOverride.value) }
         if (mode != PatrolMode.WAYPOINTS) {
             selectMovement(mode, sim.current().position)
             return
@@ -1023,7 +1043,7 @@ class PatrolService : LifecycleService() {
         val completed = if (config.injectSteps && steps.isAvailable) {
             stepOutbox.drain(config.dailyStepCap, steps::stepsWrittenByUsOn) { batch ->
                 steps.write(Instant.ofEpochMilli(batch.startMs), Instant.ofEpochMilli(batch.endMs),
-                    batch.acceptedSteps!!, batch.acceptedDistanceM, batch.id, batch.zone)
+                    batch.acceptedSteps!!, batch.acceptedDistanceM, batch.id, batch.zone, manualEntry = batch.id.startsWith("real-"))
             }
         } else emptyList()
         // Read the current LOCAL day, including after midnight, resume, or deleting records in Settings.
@@ -1209,7 +1229,10 @@ class PatrolService : LifecycleService() {
     }
 
     /** The joystick's current input. [enabled] is the on/off switch; the vector is what the pad reports. */
-    data class JoystickInput(val enabled: Boolean = false, val bearingDeg: Double = 0.0, val magnitude: Double = 0.0)
+    data class JoystickInput(
+        val enabled: Boolean = false, val bearingDeg: Double = 0.0, val magnitude: Double = 0.0,
+        val speedMode: TravelMode? = null,
+    )
 
     companion object {
         const val TAG = "PikminGPS"
@@ -1272,19 +1295,24 @@ class PatrolService : LifecycleService() {
         val OVERRIDE_CHOICES: List<TravelMode?> = listOf(null, TravelMode.BIKE, TravelMode.CAR, TravelMode.HIGHWAY, TravelMode.PLANE)
 
         fun setTravelOverride(mode: TravelMode?) {
-            _travelOverride.value = mode
+            if (_joystick.value.enabled) _joystick.update { it.copy(speedMode = mode) }
+            else _travelOverride.value = mode
         }
+
+        val controlSpeedMode: TravelMode?
+            get() = if (_joystick.value.enabled) _joystick.value.speedMode else _travelOverride.value
 
         /** Next choice after the current one (overlay button cycles through them). */
         fun cycleTravelOverride(): TravelMode? {
-            val i = OVERRIDE_CHOICES.indexOf(_travelOverride.value)
-            val next = OVERRIDE_CHOICES[(i + 1) % OVERRIDE_CHOICES.size]
-            _travelOverride.value = next
+            val choices = if (_joystick.value.enabled) JoystickSpeeds.choices else OVERRIDE_CHOICES
+            val i = choices.indexOf(controlSpeedMode)
+            val next = choices[(i + 1) % choices.size]
+            setTravelOverride(next)
             return next
         }
 
-        fun setJoystickEnabled(enabled: Boolean) {
-            _joystick.update { if (enabled) it.copy(enabled = true) else JoystickInput() }
+        fun setJoystickEnabled(enabled: Boolean, speedMode: TravelMode? = null) {
+            _joystick.update { if (enabled) it.copy(enabled = true, speedMode = speedMode) else JoystickInput() }
             val input = _joystick.value
             manualInput.update(SystemClock.elapsedRealtime(), input.bearingDeg, if (input.enabled) input.magnitude else 0.0)
         }
