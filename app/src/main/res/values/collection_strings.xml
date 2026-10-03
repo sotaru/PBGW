@@ -2,12 +2,12 @@
 <resources>
     <string name="collection_title">貼上座標規劃採花路線</string>
     <string name="collection_default_name">採花路線</string>
-    <string name="collection_help">每行貼一組「緯度,經度」，可在前面或後面加名稱。第一筆預設為家，下一步可改選。最多一個家與 300 朵大花；重複座標只留一筆。套用後會新增路線，保留原本的路線。</string>
+    <string name="collection_help">直接貼上文字，每行會找一組緯度、經度；名稱、括號、全形數字及符號可以混用。沒有有效座標的行會略過。第一個有效座標預設為家，下一步可改選。最多一個家與 300 朵大花；重複只留第一筆。套用前可檢查全部結果。</string>
     <string name="collection_example">家,25.0330,121.5654\n大花 A,25.0348,121.5680\n大花 B,25.0356,121.5620</string>
     <string name="collection_read">讀取座標</string>
     <string name="collection_choose_home">選擇家的位置</string>
     <string name="collection_home">這一筆設為家，其餘座標設為大花：</string>
-    <string name="collection_points">共 %1$d 朵大花；合併 %2$d 筆重複座標。</string>
+    <string name="collection_points">共 %1$d 朵大花；合併 %2$d 筆重複座標，略過 %3$d 行。</string>
     <string name="collection_plan">規劃路線</string>
     <string name="collection_planning">規劃中…</string>
     <string name="collection_edit">返回修改座標</string>
@@ -25,4 +25,6 @@
     <string name="collection_save_failed">路線儲存失敗，請確認手機可用空間後再試一次；家的位置尚未修改。</string>
     <string name="collection_plan_failed">路線規劃失敗，請返回檢查座標後再試一次。</string>
     <string name="collection_route_badge"> · 採花一輪</string>
+    <string name="collection_input_label">貼上包含座標的文字</string>
+    <string name="collection_skipped_lines">略過行號：%1$s（沒有有效座標）</string>
 </resources>

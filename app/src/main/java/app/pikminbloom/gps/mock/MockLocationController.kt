@@ -7,7 +7,6 @@ import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Criteria
 import android.location.Location
 import android.location.LocationManager
 import android.location.provider.ProviderProperties
@@ -162,6 +161,9 @@ class MockLocationController(context: Context) {
                         lastFlpError = it.message
                         Log.w(TAG, "FLP setMockMode(true) failed: ${it.message}")
                     }
+            } catch (e: SecurityException) {
+                lastFlpError = e.message
+                Log.w(TAG, "FLP mock permission denied", e)
             } catch (t: Throwable) {
                 lastFlpError = t.message
                 Log.w(TAG, "FLP setMockMode threw", t)
@@ -173,6 +175,8 @@ class MockLocationController(context: Context) {
     @Volatile var lastFlpError: String? = null
         private set
 
+    // These numeric constants are inlined and match the legacy addTestProvider values on API 28+.
+    @SuppressLint("InlinedApi")
     private fun addTestProvider(manager: LocationManager, provider: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val power = if (provider == LocationManager.GPS_PROVIDER) {
@@ -203,8 +207,8 @@ class MockLocationController(context: Context) {
                 true,  // supportsAltitude
                 true,  // supportsSpeed
                 true,  // supportsBearing
-                Criteria.POWER_LOW,
-                Criteria.ACCURACY_FINE,
+                ProviderProperties.POWER_USAGE_LOW,
+                ProviderProperties.ACCURACY_FINE,
             )
         }
     }
@@ -226,6 +230,8 @@ class MockLocationController(context: Context) {
                 fused.setMockLocation(
                     buildLocation(LocationManager.FUSED_PROVIDER, sample, now, nanos)
                 ).addOnFailureListener { Log.w(TAG, "FLP setMockLocation failed: ${it.message}") }
+            } catch (e: SecurityException) {
+                Log.w(TAG, "FLP mock permission denied", e)
             } catch (t: Throwable) {
                 Log.w(TAG, "FLP setMockLocation threw", t)
             }
@@ -261,6 +267,8 @@ class MockLocationController(context: Context) {
                         accuracyM, altitudeM, now, nanos
                     )
                 ).addOnFailureListener { Log.w(TAG, "FLP setMockLocation failed: ${it.message}") }
+            } catch (e: SecurityException) {
+                Log.w(TAG, "FLP mock permission denied", e)
             } catch (t: Throwable) {
                 Log.w(TAG, "FLP setMockLocation threw", t)
             }
@@ -286,6 +294,8 @@ class MockLocationController(context: Context) {
             try {
                 fused.setMockMode(false)
                     .addOnFailureListener { Log.w(TAG, "FLP setMockMode(false) failed: ${it.message}") }
+            } catch (e: SecurityException) {
+                Log.w(TAG, "FLP mock permission denied while stopping", e)
             } catch (t: Throwable) {
                 Log.w(TAG, "FLP setMockMode(false) threw", t)
             }
@@ -365,7 +375,11 @@ class MockLocationController(context: Context) {
     /** Also clear FLP mock mode left by a previous process before a real-GPS session. */
     suspend fun releaseForRealLocation() {
         stop()
-        if (isMockAppSelected()) withTimeoutOrNull(5000) { awaitTask(fused.setMockMode(false)) }
+        try {
+            if (isMockAppSelected()) withTimeoutOrNull(5000) { awaitTask(fused.setMockMode(false)) }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "FLP mock permission denied while releasing", e)
+        }
     }
 
     private fun buildLocation(provider: String, s: Sample, now: Long, nanos: Long): Location =

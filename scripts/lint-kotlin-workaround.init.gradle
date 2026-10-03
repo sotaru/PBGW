@@ -1,0 +1,9 @@
+// Optional workaround for Kotlin UAST detector crashes with this toolchain.
+// Use only with --init-script; ordinary builds keep every lint detector enabled.
+allprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin('com.android.application')) {
+            project.android.lint.disable.addAll(['UnsafeOptInUsageError', 'UnsafeOptInUsageWarning', 'RepeatOnLifecycleWrongUsage'])
+        }
+    }
+}

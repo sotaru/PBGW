@@ -41,34 +41,46 @@ object CoordinatePasteDialog {
             setHint(R.string.collection_example)
             gravity = android.view.Gravity.TOP or android.view.Gravity.START
         }
-        val error = TextView(activity).apply { setTextColor(0xFFB3261E.toInt()) }
+        val error = TextView(activity).apply { setTextColor(com.google.android.material.color.MaterialColors.getColor(this, androidx.appcompat.R.attr.colorError)) }
         val content = column().apply {
-            addView(label(R.string.collection_help)); addView(name); addView(input); addView(error)
+            addView(label(R.string.collection_help)); addView(UiForms.field(activity, activity.getString(R.string.route_name_hint), name)); addView(UiForms.field(activity, activity.getString(R.string.collection_input_label), input)); addView(error)
         }
         val editor = MaterialAlertDialogBuilder(activity).setTitle(R.string.collection_title).setView(scroll(content))
             .setPositiveButton(R.string.collection_read, null).setNegativeButton(R.string.action_cancel, null).create()
+        var finished = false
         var job: Job? = null
         var chooser: AlertDialog? = null
         var preview: AlertDialog? = null
-        editor.setOnDismissListener { job?.cancel(); preview?.dismiss(); chooser?.dismiss() }
+        editor.setOnDismissListener { finished = true; job?.cancel(); preview?.dismiss(); chooser?.dismiss() }
         editor.setOnShowListener {
             editor.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val parsed = try { CoordinatePasteParser.parse(input.text.toString()) } catch (e: IllegalArgumentException) {
                     error.text = e.message; input.error = e.message; return@setOnClickListener
                 }
                 error.text = ""; input.error = null
+                val choices = parsed.points.map { "第 ${it.line} 行 · ${it.name}\n${it.position}" }
                 val homePicker = Spinner(activity).apply {
-                    adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item,
-                        parsed.points.map { "${it.name}（${it.position}）" })
+                    adapter = object : ArrayAdapter<String>(activity, android.R.layout.simple_spinner_dropdown_item, choices) {
+                        private fun row(position: Int) = TextView(activity).apply {
+                            text = choices[position]
+                            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
+                            setPadding(padding / 3, padding / 2, padding / 3, padding / 2)
+                            minHeight = (48 * resources.displayMetrics.density).toInt()
+                        }
+                        override fun getView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View = row(position)
+                        override fun getDropDownView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View = row(position)
+                    }
                 }
                 val count = TextView(activity).apply {
-                    text = activity.getString(R.string.collection_points, parsed.points.size - 1, parsed.duplicates)
+                    text = activity.getString(R.string.collection_points, parsed.points.size - 1, parsed.duplicates, parsed.skippedLines.size) +
+                        if (parsed.skippedLines.isEmpty()) "" else "\n" + activity.getString(R.string.collection_skipped_lines,
+                            parsed.skippedLines.take(12).joinToString("、") + if (parsed.skippedLines.size > 12) "…" else "")
                 }
                 val homeContent = column().apply { addView(count); addView(label(R.string.collection_home)); addView(homePicker) }
                 val homeDialog = MaterialAlertDialogBuilder(activity).setTitle(R.string.collection_choose_home).setView(scroll(homeContent))
                     .setPositiveButton(R.string.collection_plan, null).setNegativeButton(R.string.collection_edit, null).create()
                 chooser = homeDialog
-                homeDialog.setOnDismissListener { job?.cancel(); preview?.dismiss() }
+                homeDialog.setOnDismissListener { job?.cancel(); preview?.dismiss(); if (!finished) editor.show() }
                 homeDialog.setOnShowListener {
                     homeDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                         val home = parsed.points[homePicker.selectedItemPosition]
@@ -82,7 +94,7 @@ object CoordinatePasteDialog {
                                 val plan = withContext(Dispatchers.Default) {
                                     CollectionRoutePlanner.plan(home.position, flowers.map { it.position })
                                 }
-                                if (!editor.isShowing || !homeDialog.isShowing) return@launch
+                                if (!homeDialog.isShowing) return@launch
                                 val ordered = plan.order.map { flowers[it] }
                                 fun distance(m: Double) = String.format(Locale.TAIWAN, "%.2f 公里", m / 1000.0)
                                 val details = activity.getString(R.string.collection_summary, ordered.size,
@@ -95,16 +107,19 @@ object CoordinatePasteDialog {
                                 val routeDialog = MaterialAlertDialogBuilder(activity).setTitle(R.string.collection_preview)
                                     .setView(scroll(column().apply { addView(routeText) }))
                                     .setPositiveButton(R.string.collection_apply, null).setNegativeButton(R.string.collection_back, null).create()
+                                routeDialog.setOnDismissListener { if (!finished) homeDialog.show() }
                                 preview = routeDialog
                                 routeDialog.setOnShowListener {
                                     routeDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                                         if (onApply(name.text.toString().trim(), home.position, ordered)) {
+                                            finished = true
                                             routeDialog.dismiss(); homeDialog.dismiss(); editor.dismiss()
                                             MaterialAlertDialogBuilder(activity).setTitle(R.string.collection_ready)
                                                 .setMessage(R.string.collection_start_help).setPositiveButton(android.R.string.ok, null).show()
                                         }
                                     }
                                 }
+                                homeDialog.hide()
                                 routeDialog.show()
                             } catch (e: CancellationException) { throw e }
                             catch (e: Exception) { count.setText(R.string.collection_plan_failed) }
@@ -114,6 +129,7 @@ object CoordinatePasteDialog {
                         }
                     }
                 }
+                editor.hide()
                 homeDialog.show()
             }
         }

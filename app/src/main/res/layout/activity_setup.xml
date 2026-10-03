@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
-
+    android:orientation="vertical" >
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
@@ -13,7 +13,6 @@
         android:background="?attr/colorSurface"
         app:navigationIcon="@drawable/ic_arrow_back"
         app:title="@string/title_setup" />
-
     <androidx.core.widget.NestedScrollView
         android:id="@+id/scroll"
         android:layout_width="match_parent"
@@ -23,49 +22,51 @@
         android:paddingStart="@dimen/space_l"
         android:paddingTop="@dimen/space_s"
         android:paddingEnd="@dimen/space_l"
-        android:paddingBottom="@dimen/space_xl">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
+        android:paddingBottom="@dimen/space_xl" >
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
             <TextView
                 android:id="@+id/header"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="@dimen/space_m"
-                android:text="@string/setup_header"
+                android:text="@string/ui_setup_intro"
                 android:textAppearance="?attr/textAppearanceBodyMedium" />
-
-            <include
-                android:id="@+id/rowLocation"
-                layout="@layout/item_setup_row" />
-
-            <include
-                android:id="@+id/rowNotification"
-                layout="@layout/item_setup_row" />
-
-            <include
-                android:id="@+id/rowMock"
-                layout="@layout/item_setup_row" />
-
-            <include
-                android:id="@+id/rowHealth"
-                layout="@layout/item_setup_row" />
-
-            <include
-                android:id="@+id/rowBattery"
-                layout="@layout/item_setup_row" />
-
-            <include
-                android:id="@+id/rowOverlay"
-                layout="@layout/item_setup_row" />
-
-            <include
-                android:id="@+id/rowGame"
-                layout="@layout/item_setup_row" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="16dp"
+                android:paddingBottom="12dp"
+                android:text="@string/ui_setup_required"
+                android:textColor="?attr/colorSecondary"
+                android:textAppearance="?attr/textAppearanceTitleMedium" />
+            <include android:id="@+id/rowLocation" layout="@layout/item_setup_row"/>
+            <include android:id="@+id/rowMock" layout="@layout/item_setup_row"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="16dp"
+                android:paddingBottom="12dp"
+                android:text="@string/ui_setup_optional"
+                android:textColor="?attr/colorSecondary"
+                android:textAppearance="?attr/textAppearanceTitleMedium" />
+            <include android:id="@+id/rowHealth" layout="@layout/item_setup_row"/>
+            <include android:id="@+id/rowNotification" layout="@layout/item_setup_row"/>
+            <include android:id="@+id/rowBattery" layout="@layout/item_setup_row"/>
+            <include android:id="@+id/rowOverlay" layout="@layout/item_setup_row"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="16dp"
+                android:paddingBottom="12dp"
+                android:text="@string/ui_setup_game"
+                android:textColor="?attr/colorSecondary"
+                android:textAppearance="?attr/textAppearanceTitleMedium" />
+            <include android:id="@+id/rowGame" layout="@layout/item_setup_row"/>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ui_setup_done" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
-
 </LinearLayout>

@@ -64,7 +64,7 @@ object WaypointDialogs {
                 if (name.isEmpty()) {
                     binding.tilName.error = activity.getString(R.string.err_name_required); ok = false
                 }
-                if (radius == null || radius < MIN_RADIUS_M || radius > MAX_RADIUS_M) {
+                if (radius == null || !radius.isFinite() || radius < MIN_RADIUS_M || radius > MAX_RADIUS_M) {
                     binding.tilRadius.error = activity.getString(R.string.err_radius_range); ok = false
                 }
                 if (dwell == null || dwell < MIN_DWELL_SEC || dwell > MAX_DWELL_SEC) {
@@ -146,6 +146,8 @@ object WaypointDialogs {
         val sheet = BottomSheetDialog(activity)
         sheet.setContentView(binding.root)
 
+        binding.listScroll.maximumHeight = (activity.resources.displayMetrics.heightPixels * 0.45f).toInt()
+
         fun render() {
             val list = store.load()
             binding.tvEmpty.visibility = if (list.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
@@ -185,8 +187,9 @@ object WaypointDialogs {
             val host = activity as? androidx.appcompat.app.AppCompatActivity ?: return@setOnClickListener
             // Search around wherever we currently are: the simulated position while patrolling,
             // otherwise the saved home, the last known position, or the first waypoint.
-            val center = app.pikminbloom.gps.service.PatrolService.state.value.position
-                ?: prefs.home
+            val state = app.pikminbloom.gps.service.PatrolService.state.value
+            val center = state.position.takeIf { state.phase != app.pikminbloom.gps.data.PatrolPhase.IDLE }
+                ?: prefs.customHome ?: prefs.home
                 ?: prefs.lastPosition
                 ?: store.load().firstOrNull()?.latLng
             OverpassSearch.show(host, prefs, store, center)
@@ -194,14 +197,16 @@ object WaypointDialogs {
         binding.btnDecorHunt.setOnClickListener {
             sheet.dismiss()
             val host = activity as? androidx.appcompat.app.AppCompatActivity ?: return@setOnClickListener
-            val center = app.pikminbloom.gps.service.PatrolService.state.value.position
-                ?: prefs.home
+            val state = app.pikminbloom.gps.service.PatrolService.state.value
+            val center = state.position.takeIf { state.phase != app.pikminbloom.gps.data.PatrolPhase.IDLE }
+                ?: prefs.customHome ?: prefs.home
                 ?: prefs.lastPosition
                 ?: store.load().firstOrNull()?.latLng
             DecorHunt.show(host, prefs, store, center)
         }
         render()
         sheet.show()
+        sheet.behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
     }
 
     /**

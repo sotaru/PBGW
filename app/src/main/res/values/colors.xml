@@ -9,7 +9,6 @@
     <color name="home_marker">#FFE53935</color>
     <!-- Big Flowers found by the bird's-eye scan, before they become route waypoints. -->
     <color name="scan_marker">#FFFF8F00</color>
-
     <!-- Floating control bar (ui/OverlayService). An overlay window has no activity theme, so these
          must be explicit and identical in light and dark mode. -->
     <color name="overlay_bg">#E62A2C30</color>
@@ -23,9 +22,22 @@
     <color name="overlay_phase_idle">#FF757575</color>
     <color name="overlay_phase_parked">#FF8E24AA</color>
     <color name="overlay_phase_manual">#FF00897B</color>
-
     <!-- Floating joystick (ui/JoystickView), also an overlay window. -->
     <color name="joystick_base">#8A2A2C30</color>
     <color name="joystick_ring">#B3FFFFFF</color>
     <color name="joystick_knob">#E6FFFFFF</color>
+    <color name="brand_primary">#9B4600</color>
+    <color name="brand_on_primary">#FFFFFF</color>
+    <color name="brand_primary_container">#FFE0C2</color>
+    <color name="brand_on_primary_container">#341500</color>
+    <color name="brand_secondary">#37664C</color>
+    <color name="brand_on_secondary">#FFFFFF</color>
+    <color name="brand_secondary_container">#C0ECCE</color>
+    <color name="brand_on_secondary_container">#102A1B</color>
+    <color name="brand_surface">#FFF9F3</color>
+    <color name="brand_surface_container">#F5ECE2</color>
+    <color name="brand_on_surface">#29231D</color>
+    <color name="brand_on_surface_variant">#62574D</color>
+    <color name="brand_outline">#817469</color>
+    <color name="brand_outline_variant">#D9C8B9</color>
 </resources>

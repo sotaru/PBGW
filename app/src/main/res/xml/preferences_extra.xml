@@ -5,36 +5,32 @@
   touching the main preference file.
 -->
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
-
     <PreferenceCategory app:title="@string/pref_cat_alerts">
-
         <SwitchPreferenceCompat
+            app:iconSpaceReserved="false"
             app:defaultValue="false"
             app:key="vibrate_on_arrival"
             app:summary="@string/pref_vibrate_summary"
             app:title="@string/pref_vibrate_title" />
-
         <EditTextPreference
+            app:iconSpaceReserved="false"
             app:defaultValue="60"
             app:key="alert_gap_sec"
             app:summary="@string/pref_alert_gap_summary"
             app:title="@string/pref_alert_gap_title" />
-
         <EditTextPreference
+            app:iconSpaceReserved="false"
             app:defaultValue="0"
-            app:icon="@drawable/ic_home"
             app:key="auto_return_after_laps"
             app:summary="@string/pref_auto_return_summary"
             app:title="@string/pref_auto_return_title" />
     </PreferenceCategory>
-
     <PreferenceCategory app:title="@string/pref_cat_plausibility">
-
         <EditTextPreference
+            app:iconSpaceReserved="false"
             app:defaultValue="0"
             app:key="max_cadence_spm"
             app:summary="@string/pref_cadence_summary"
             app:title="@string/pref_cadence_title" />
     </PreferenceCategory>
-
 </PreferenceScreen>

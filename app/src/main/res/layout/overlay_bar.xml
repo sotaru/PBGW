@@ -4,31 +4,30 @@
   Collapsed = only [handle]; tapping the handle shows [bar]. Every colour is explicit because an
   overlay window is inflated without an activity theme.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
-    android:orientation="horizontal">
-
+    android:orientation="horizontal" >
     <FrameLayout
         android:id="@+id/handle"
         android:layout_width="@dimen/overlay_handle"
         android:layout_height="@dimen/overlay_handle"
         android:alpha="0.88"
-        android:background="@drawable/bg_overlay_handle">
-
-        <ImageView
+        android:background="@drawable/bg_overlay_handle" >
+        <androidx.appcompat.widget.AppCompatImageView
             android:id="@+id/handleIcon"
             android:layout_width="@dimen/overlay_icon"
             android:layout_height="@dimen/overlay_icon"
             android:layout_gravity="center"
             android:contentDescription="@string/ovl_cd_handle"
             android:src="@drawable/ic_flower"
-            android:tint="@color/overlay_icon" />
+            app:tint="@color/overlay_icon" />
     </FrameLayout>
-
-    <!-- Two rows (status line over the buttons) so the bar stays narrower than any phone. -->
+    <!-- Status above two rows of buttons keeps the bar narrow on phones. -->
     <LinearLayout
         android:id="@+id/bar"
         android:layout_width="wrap_content"
@@ -41,32 +40,30 @@
         android:paddingTop="@dimen/space_xs"
         android:paddingEnd="@dimen/space_s"
         android:paddingBottom="@dimen/space_xs"
-        android:visibility="gone">
-
-        <!-- Fixed width + uniform auto-sizing: the bar keeps one predictable size and the line
+        android:visibility="gone" >
+        <!-- Fixed width + uniform auto-sizing: the bar keeps one predictable size and the text
              shrinks instead of being truncated when the user runs a large system font scale. -->
         <LinearLayout
             android:layout_width="@dimen/overlay_status_max"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
-
+            android:orientation="horizontal" >
             <TextView
                 android:id="@+id/status"
                 android:layout_width="0dp"
-                android:layout_height="20dp"
+                android:layout_height="wrap_content"
+                android:minHeight="32dp"
                 android:layout_weight="1"
                 android:gravity="center_vertical"
-                android:autoSizeMaxTextSize="11sp"
-                android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="13sp"
+                android:autoSizeMinTextSize="11sp"
                 android:autoSizeStepGranularity="1sp"
                 android:autoSizeTextType="uniform"
                 android:ellipsize="end"
-                android:singleLine="true"
+                android:maxLines="2"
                 android:textColor="@color/overlay_text"
-                android:textSize="11sp" />
-
-            <ImageButton
+                android:textSize="13sp" />
+            <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/btnClose"
                 android:layout_width="@dimen/overlay_button"
                 android:layout_height="@dimen/overlay_button"
@@ -75,95 +72,93 @@
                 android:padding="@dimen/space_xs"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_close"
-                android:tint="@color/overlay_icon" />
+                app:tint="@color/overlay_icon" />
         </LinearLayout>
-
         <LinearLayout
             android:id="@+id/buttons"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-        <ImageButton
-            android:id="@+id/btnToggle"
-            android:layout_width="@dimen/overlay_button"
-            android:layout_height="@dimen/overlay_button"
-            android:background="@drawable/bg_overlay_button"
-            android:contentDescription="@string/ovl_cd_pause"
-            android:padding="@dimen/space_xs"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_pause"
-            android:tint="@color/overlay_icon" />
-
-        <ImageButton
-            android:id="@+id/btnHome"
-            android:layout_width="@dimen/overlay_button"
-            android:layout_height="@dimen/overlay_button"
-            android:background="@drawable/bg_overlay_button"
-            android:contentDescription="@string/ovl_cd_home"
-            android:padding="@dimen/space_xs"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_home"
-            android:tint="@color/overlay_icon" />
-
-        <ImageButton
-            android:id="@+id/btnStop"
-            android:layout_width="@dimen/overlay_button"
-            android:layout_height="@dimen/overlay_button"
-            android:background="@drawable/bg_overlay_button"
-            android:contentDescription="@string/ovl_cd_stop"
-            android:padding="@dimen/space_xs"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_stop"
-            android:tint="@color/overlay_icon" />
-
-        <!-- Vehicle override: each tap cycles 步行 → 腳踏車 → 汽機車 → 高速公路 → 飛機. -->
-        <ImageButton
-            android:id="@+id/btnVehicle"
-            android:layout_width="@dimen/overlay_button"
-            android:layout_height="@dimen/overlay_button"
-            android:background="@drawable/bg_overlay_button"
-            android:contentDescription="@string/ovl_cd_vehicle"
-            android:padding="@dimen/space_xs"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_walk"
-            android:tint="@color/overlay_icon" />
-
-        <!-- Joystick on/off; the pad itself is a second window (overlay_joystick.xml). -->
-        <ImageButton
-            android:id="@+id/btnJoystick"
-            android:layout_width="@dimen/overlay_button"
-            android:layout_height="@dimen/overlay_button"
-            android:background="@drawable/bg_overlay_button"
-            android:contentDescription="@string/ovl_cd_joystick"
-            android:padding="@dimen/space_xs"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_gamepad"
-            android:tint="@color/overlay_icon" />
-
-        <!-- Bird's-eye Big Flower scan toggle (vision/FlowerScanner). -->
-        <ImageButton
-            android:id="@+id/btnScan"
-            android:layout_width="@dimen/overlay_button"
-            android:layout_height="@dimen/overlay_button"
-            android:background="@drawable/bg_overlay_button"
-            android:contentDescription="@string/ovl_cd_scan"
-            android:padding="@dimen/space_xs"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_scan"
-            android:tint="@color/overlay_icon" />
-
-        <ImageButton
-            android:id="@+id/btnOpen"
-            android:layout_width="@dimen/overlay_button"
-            android:layout_height="@dimen/overlay_button"
-            android:background="@drawable/bg_overlay_button"
-            android:contentDescription="@string/ovl_cd_open"
-            android:padding="@dimen/space_xs"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_my_location"
-            android:tint="@color/overlay_icon" />
+            android:orientation="horizontal" >
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnToggle"
+                android:layout_width="@dimen/overlay_button"
+                android:layout_height="@dimen/overlay_button"
+                android:background="@drawable/bg_overlay_button"
+                android:contentDescription="@string/ovl_cd_pause"
+                android:padding="@dimen/space_xs"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_pause"
+                app:tint="@color/overlay_icon" />
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnHome"
+                android:layout_width="@dimen/overlay_button"
+                android:layout_height="@dimen/overlay_button"
+                android:background="@drawable/bg_overlay_button"
+                android:contentDescription="@string/ovl_cd_home"
+                android:padding="@dimen/space_xs"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_home"
+                app:tint="@color/overlay_icon" />
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnStop"
+                android:layout_width="@dimen/overlay_button"
+                android:layout_height="@dimen/overlay_button"
+                android:background="@drawable/bg_overlay_button"
+                android:contentDescription="@string/ovl_cd_stop"
+                android:padding="@dimen/space_xs"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_stop"
+                app:tint="@color/overlay_icon" />
+            <!-- Vehicle override: each tap cycles 步行 → 腳踏車 → 汽機車 → 高速公路 → 飛機. -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnVehicle"
+                android:layout_width="@dimen/overlay_button"
+                android:layout_height="@dimen/overlay_button"
+                android:background="@drawable/bg_overlay_button"
+                android:contentDescription="@string/ovl_cd_vehicle"
+                android:padding="@dimen/space_xs"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_walk"
+                app:tint="@color/overlay_icon" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical" >
+            <!-- Joystick on/off; the pad itself is a second window (overlay_joystick.xml). -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnJoystick"
+                android:layout_width="@dimen/overlay_button"
+                android:layout_height="@dimen/overlay_button"
+                android:background="@drawable/bg_overlay_button"
+                android:contentDescription="@string/ovl_cd_joystick"
+                android:padding="@dimen/space_xs"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_gamepad"
+                app:tint="@color/overlay_icon" />
+            <!-- Bird's-eye Big Flower scan toggle (vision/FlowerScanner). -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnScan"
+                android:layout_width="@dimen/overlay_button"
+                android:layout_height="@dimen/overlay_button"
+                android:background="@drawable/bg_overlay_button"
+                android:contentDescription="@string/ovl_cd_scan"
+                android:padding="@dimen/space_xs"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_scan"
+                app:tint="@color/overlay_icon" />
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnOpen"
+                android:layout_width="@dimen/overlay_button"
+                android:layout_height="@dimen/overlay_button"
+                android:background="@drawable/bg_overlay_button"
+                android:contentDescription="@string/ovl_cd_open"
+                android:padding="@dimen/space_xs"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_my_location"
+                app:tint="@color/overlay_icon" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

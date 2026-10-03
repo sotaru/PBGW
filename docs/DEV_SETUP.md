@@ -4,24 +4,20 @@
 
 這台電腦的專案位於 `C:\Projects\PBGW`，Google Maps 金鑰也放在這裡的 `secrets.properties`。換電腦時可以選自己的目錄，不必照搬這個路徑。
 
-## 目前程式碼變動（1.2.8）
+## 目前版本：1.3.0／11
+
+介面與互動重整、座標容錯解析、設定搜尋及驗證，詳見 [UI 與 code review](UI_REVIEW.md)。完整操作已移至 [使用指南](USER_GUIDE.md)。
 
 | 功能 | 對應程式碼 | 目前做法 |
 |---|---|---|
-| 貼上 GPS 座標 | `route/CoordinatePasteParser.kt`、`ui/CoordinatePasteDialog.kt`、`collection_strings.xml`、`menu/main.xml` | 多行解析與範圍／大小檢查、重複座標合併、選家與預覽；取消不保存，執行中或有中斷點時禁止套用。 |
-| 採花順序 | `route/CollectionRoutePlanner.kt`、`CollectionRouteTest.kt` | 14 朵以內 Held–Karp；更多點以原順序和多起點最近鄰起步，再做 2-opt，保留較短結果。規劃在背景執行，以大花中心的直線距離計算。 |
-| 採花路線與保存 | `data/WaypointStore.kt`、`service/PatrolService.kt`、`ui/MainActivity.kt`、`ui/WaypointDialogs.kt` | `Route.collectOnce` 預設 false、保存於 v2 JSON；新路線整批原子寫入後啟用。巡邏啟動、恢復、模式切換及即時設定都套用一次巡邏、通過範圍、不繞行、步行回家；預覽含回家線段。 |
-| 自訂家顯示 | `ui/MainActivity.kt`、`ui/GoogleMapLayer.kt`、`strings_live.xml` | `homeForDisplay` 在閒置時優先使用目前設定，避免舊的巡邏快照覆蓋新家；啟動中心也優先使用自訂家。儲存後阻擋尚未完成的 GPS 查詢重新置中，提示說明下次巡邏使用。Google Maps 更新 padding 後重新置中，保持準星與座標對齊。 |
-| 名稱與圖示 | `settings.gradle`、`values/strings.xml`、兩份 `colors.xml`、`data/WaypointStore.kt` | 顯示名稱、設定引導與 GPX 建立程式名稱改為「阿皮小夥伴」；啟動圖示底色固定橙色 `#F57C00`、花瓣白色。套件名稱仍為 `app.pikminbloom.gps`，專案路徑仍是 `C:\Projects\PBGW`。 |
-| 浮動視窗關閉 | `ui/OverlayService.kt`、`ui/MainActivity.kt`、`layout/overlay_bar.xml`、`drawable/ic_close.xml` | 展開後右上角「×」關閉控制列與搖桿；取消搖桿接手，保留巡邏與暫停狀態。本次巡邏抑制自動顯示，手動開啟或新巡邏可恢復，不改自動顯示設定。 |
-| 搖桿速度 | `data/JoystickSpeeds.kt`、`ui/JoystickSpeedDialog.kt`、`PatrolService`、`WalkSimulator`、`OverlayService` | 每次開啟都選本次速度；取消不開啟，手動速度與自動巡邏分開。步行、快走、慢跑計步，交通工具不計步。 |
-| Google Maps | `data/Prefs.kt`、`ui/MainActivity.kt` | 未儲存地圖選擇時，有金鑰就用 Google Maps；保留手動選擇。啟動切換地圖時沿用已設定的中心，避開尚未完成版面的 MapView。 |
-| 真實 GPS 步數服務 | `service/RealGpsStepsService.kt`、`AndroidManifest.xml` | 獨立定位前景服務，使用實機 GPS、排除模擬定位，與模擬巡邏互斥；支援暫停、繼續、停止與達標結束。 |
-| 定時步數與抖動 | `steps/TimedStepCounter.kt` | 保存小數累計，總步數不超過目標；每 3～8 秒更新抖動，沿用速度抖動設定，執行中改設定也會套用。 |
-| GPS 移動分析 | `geo/GpsMotionAnalyzer.kt` | 使用精度、可靠 GPS 速度與座標視窗判斷移動／停止。移動時抖動偏多、停止時偏少；不可靠時回到一般抖動。 |
-| Health Connect | `steps/StepInjector.kt`、兩個步數服務、原有 `StepWriteOutbox` | 新模式寫入手動輸入步數，不新增距離；兩種模式共用待寫檔、每日上限與原本的重試識別碼。 |
-| 操作與除錯 | `ui/MainActivity.kt`、`ui/RealGpsStepsDialog.kt`、`menu/main.xml`、`strings_real_steps.xml`、debug receiver | 新增模式入口、目標與速率輸入、移動判斷及目前速率；debug 版提供暫停啟動與狀態查詢。 |
-| 測試 | `JoystickSpeedTest`、`TimedStepCounterTest`、`TimedStepOutboxTest`、`GpsMotionAnalyzerTest` | 本次變動包含速度選擇、抖動方向、漂移、訊號逾時、暫停、目標與重試測試。 |
+| 主畫面與地圖 | `MainActivity.kt`、`activity_main.xml`、`PanelScrollView.kt` | 路線／跳轉／工具直接入口，狀態摘要及可收合、捲動面板。地圖可見區域隨面板高度調整；平板面板最高寬 600dp。 |
+| 共用視覺與操作 | `themes.xml`、兩份 `colors.xml`、`ActionSheet.kt`、`UiForms.kt` | 日夜主題、說明式底部面板及標籤表單；固定品牌配色取代桌布動態色。 |
+| 座標貼上 | `CoordinatePasteParser.kt`、`CoordinatePasteDialog.kt`、`CollectionRouteTest.kt` | 正規化全形字元，逐行找一組十進位座標，略過無效行並保留行號。每頁只顯示目前步驟，返回保留輸入；最後套用才存檔。 |
+| 設定 | `SettingsActivity.kt`、`SettingInput.kt`、`SettingInputTest.kt` | 本機搜尋、單位及有效範圍、保留錯誤輸入；負海拔可輸入。 |
+| 大花與浮動控制 | `WaypointDialogs.kt`、`item_waypoint.xml`、`overlay_bar.xml` | 大花資料與按鈕分列、48dp 操作範圍；浮動按鈕分兩排，保留拖曳、關閉及搖桿功能。 |
+| Review 修正 | `Prefs.kt`、`MockLocationController.kt`、`MainActivity.kt`、`WaypointDialogs.kt` | 排除非有限數值，明確處理 FLP 權限例外；修正家的輸入及附近搜尋位置。 |
+
+1.2.x 的採花規劃、步數佇列、GPS 分析與搖桿核心沿用原實作；歷史差異見 [版本紀錄](../CHANGELOG.md)。
 
 ## 1. 下載專案
 
@@ -74,10 +70,16 @@ Linux／macOS（已設定 Java 與 Android SDK）：
 
 - Debug APK：`app/build/outputs/apk/debug/app-debug.apk`。
 - Release APK：執行 `assembleRelease`，輸出到 `app/build/outputs/apk/release/app-release.apk`。
-- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 10／1.2.8。
-- 本次有 183 項單元測試；新增座標與採花路線 11 項，原有定時步數 12 項、待寫佇列整合 2 項、GPS 移動分析 9 項、搖桿速度 5 項仍保留。
-- 目前結果為 182 項通過、1 項略過、0 項失敗。既有花朵辨識測試需要未納入 Git 的 `live_user5.png`，缺少圖片時會略過；這不代表步數、GPS 或搖桿測試失敗。
-- `assembleDebug`、`testDebugUnitTest`、`assembleRelease` 與 release 必要的 `lintVitalRelease` 通過。另跑完整 `lintDebug` 時仍有 16 項既有錯誤、44 項警告，錯誤位於未修改的 `MockLocationController.kt`（權限及常數檢查）和 `overlay_bar.xml`（tint 屬性）。新增的座標與採花檔案沒有 Lint 錯誤；完整 Lint 尚未全數通過。
+- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 11／1.3.0。
+- 本版有 193 項單元測試：192 項通過、1 項略過、0 項失敗。缺少本機 `live_user5.png` 的既有辨識圖片測試會略過。
+- Debug／release 建置及 release 必要的 `lintVitalRelease` 已通過。
+- 一般 `lintDebug` 在這組 AGP／Kotlin／AndroidX 工具上會因 Kotlin UAST 檢查器崩潰。要完成其餘檢查，可明確選用備用流程：
+
+```powershell
+.\gradlew.bat lintDebug --init-script scripts/lint-kotlin-workaround.init.gradle --console=plain
+```
+
+這個 init script 只在該次執行停用 `UnsafeOptInUsageError`、`UnsafeOptInUsageWarning` 與 `RepeatOnLifecycleWrongUsage`；不改 App 設定、不建立忽略錯誤的 baseline。其餘檢查為 0 錯誤、51 警告，並不代表全部 Lint 檢查已通過。停用項目、人工 review 與驗證範圍見 [UI review](UI_REVIEW.md)。
 
 ### 簽章要注意什麼？
 
@@ -113,7 +115,7 @@ $adbPath = '<Android SDK 路徑>/platform-tools/adb.exe'
 & $adbPath -s '<實機序號>' shell dumpsys package app.pikminbloom.gps | Select-String 'versionCode=|versionName=|pkgFlags='
 ~~~
 
-本版應顯示 `versionName=1.2.8`、`versionCode=10`，`pkgFlags` 不含 `DEBUGGABLE`。再確認手機上的「阿皮小夥伴」主畫面、Google Maps 底圖與右上角選單能正常開啟。安裝成功與功能測試分開記錄；正式版沒有 debug receiver，不能用 debug 廣播驗證控制行為。
+本版應顯示 `versionName=1.3.0`、`versionCode=11`，`pkgFlags` 不含 `DEBUGGABLE`。再確認手機上的「阿皮小夥伴」主畫面、Google Maps 底圖與右上角選單能正常開啟。安裝成功與功能測試分開記錄；正式版沒有 debug receiver，不能用 debug 廣播驗證控制行為。
 
 2026-10-03 已更新 TB373FU 的 release 1.2.7，確認版號 9、不可偵錯，裝置上的 APK 雜湊與本機 release 相符。更新前暫停蚊香巡邏，更新後從 checkpoint 接回原位置、距離與步數，再恢復巡邏。原有自訂家與設定保留。
 

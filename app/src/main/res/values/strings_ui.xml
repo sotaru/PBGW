@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_toolbar_subtitle">地圖、路線與步數</string>
+    <string name="ui_routes">路線</string>
+    <string name="ui_jump">跳轉</string>
+    <string name="ui_tools">工具</string>
+    <string name="ui_expand">詳細</string>
+    <string name="ui_collapse">收合</string>
+    <string name="ui_idle_hint">拖曳地圖對準十字，或先選一條路線。</string>
+    <string name="ui_route_summary">%1$s · %2$d 朵大花</string>
+    <string name="ui_walk_metric">已走 %1$s</string>
+    <string name="ui_steps_metric">本次 %1$d 步</string>
+    <string name="ui_detail_hint">本次步數是 App 換算值；今日已寫入是 Health Connect 紀錄。</string>
+    <string name="ui_mode_help">選一種方式開始</string>
+    <string name="ui_mode_route_desc">依大花順序走訪；採花路線走一輪後步行回家。</string>
+    <string name="ui_mode_spiral_desc">從目前位置向外繞圈，不必先加入大花。</string>
+    <string name="ui_mode_steps_desc">保留手機真實 GPS，依目標與時間新增步數。</string>
+    <string name="ui_jump_desc">跳轉會停下目前移動，停留在新位置，不改家的位置。</string>
+    <string name="ui_jump_center_desc">使用地圖十字準星對準的位置。</string>
+    <string name="ui_jump_coords_desc">貼上緯度、經度，例如 25.0330, 121.5654。</string>
+    <string name="ui_tools_desc">規劃路線、調整地圖，或完成第一次設定。</string>
+    <string name="ui_section_routes">路線與資料</string>
+    <string name="ui_section_map">地圖與移動</string>
+    <string name="ui_section_setup">設定與權限</string>
+    <string name="ui_paste_desc">從文字逐行找座標，選家並預覽採花順序。</string>
+    <string name="ui_setup_entry">檢查權限與初始設定</string>
+    <string name="ui_setup_entry_desc">定位、Health Connect、通知與浮動視窗。</string>
+    <string name="ui_settings_help">依照用途分組；數字旁會顯示單位。</string>
+    <string name="ui_search_settings">搜尋設定</string>
+    <string name="ui_search_empty">沒有符合的設定，換個關鍵字試試。</string>
+    <string name="ui_setup_intro">先完成定位，再依你要用的功能開啟其他權限。回到這裡會自動重新檢查。</string>
+    <string name="ui_setup_required">定位與模擬位置</string>
+    <string name="ui_setup_optional">步數與背景操作</string>
+    <string name="ui_setup_game">遊戲端設定</string>
+    <string name="ui_setup_done">回到地圖</string>
+    <string name="ui_route_list_hint">點名稱看位置；用下方按鈕調整順序、編輯或刪除。</string>
+    <string name="ui_coordinate_label">緯度與經度</string>
+    <string name="ui_spiral_label">本次線寬（公尺）</string>
+    <string name="ui_summary_target">%1$s · 距離 %2$s</string>
+    <string name="ui_real_summary">已寫入 %1$d / %2$d 步 · 待寫 %3$d 步</string>
+    <string name="ui_settings_range">請輸入 %1$s～%2$s 之間的數字。</string>
+    <string name="ui_close">關閉</string>
+</resources>

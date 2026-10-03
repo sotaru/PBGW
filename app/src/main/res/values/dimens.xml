@@ -5,7 +5,6 @@
     <dimen name="space_m">12dp</dimen>
     <dimen name="space_l">16dp</dimen>
     <dimen name="space_xl">24dp</dimen>
-
     <dimen name="card_corner">20dp</dimen>
     <dimen name="card_elevation">6dp</dimen>
     <dimen name="setup_icon">28dp</dimen>
@@ -13,10 +12,9 @@
     <dimen name="route_width">6dp</dimen>
     <dimen name="trail_width">8dp</dimen>
     <dimen name="circle_stroke">2dp</dimen>
-
     <dimen name="overlay_handle">48dp</dimen>
     <dimen name="overlay_icon">26dp</dimen>
-    <dimen name="overlay_button">32dp</dimen>
+    <dimen name="overlay_button">48dp</dimen>
     <dimen name="overlay_corner">18dp</dimen>
     <dimen name="overlay_status_max">224dp</dimen>
     <dimen name="joystick_size">150dp</dimen>

@@ -7,41 +7,36 @@
     android:layout_marginBottom="@dimen/space_m"
     app:cardCornerRadius="@dimen/card_corner"
     app:cardElevation="0dp"
-    app:strokeWidth="1dp">
-
+    app:strokeWidth="1dp"
+    app:strokeColor="?attr/colorOutlineVariant" >
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="@dimen/space_l">
-
+        android:padding="@dimen/space_l" >
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:baselineAligned="false"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
-
+            android:orientation="horizontal" >
             <ImageView
                 android:id="@+id/icon"
                 android:layout_width="@dimen/setup_icon"
                 android:layout_height="@dimen/setup_icon"
                 android:contentDescription="@string/setup_ok"
                 android:src="@drawable/ic_warning" />
-
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/space_m"
                 android:layout_weight="1"
-                android:orientation="vertical">
-
+                android:orientation="vertical" >
                 <TextView
                     android:id="@+id/title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:textAppearance="?attr/textAppearanceTitleSmall" />
-
                 <TextView
                     android:id="@+id/status"
                     android:layout_width="match_parent"
@@ -49,25 +44,22 @@
                     android:textAppearance="?attr/textAppearanceLabelMedium" />
             </LinearLayout>
         </LinearLayout>
-
         <TextView
             android:id="@+id/desc"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/space_s"
             android:lineSpacingExtra="3dp"
-            android:textAppearance="?attr/textAppearanceBodySmall" />
-
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
         <TextView
             android:id="@+id/hint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/space_xs"
             android:lineSpacingExtra="3dp"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorPrimary"
             android:visibility="gone" />
-
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPrimary"
             style="@style/Widget.Material3.Button.TonalButton"
@@ -75,7 +67,6 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/space_s"
             android:visibility="gone" />
-
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSecondary"
             style="@style/Widget.Material3.Button.TextButton"

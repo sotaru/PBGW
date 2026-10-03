@@ -4,7 +4,7 @@ App 尚未儲存地圖選擇時，有設定 API 金鑰就預設使用 Google Map
 
 App 顯示名稱為「阿皮小夥伴」。Google Cloud 的 Android 應用程式限制仍填套件名稱 `app.pikminbloom.gps`，不使用中文顯示名稱。
 
-1.2.8 的「貼上座標規劃採花路線」在手機本機計算座標順序，Google Maps 與 OpenStreetMap 都可顯示家、大花及回家線段。這項功能不使用 Google Routes／Directions API，不必另啟用路線 API；預覽距離是座標中心間的直線距離，不是 Google 道路導航結果。選家與一次套用的操作見 [專案說明](../README.md#貼上整份-gps-座標規劃採花路線)。
+「貼上座標規劃採花路線」在手機本機計算座標順序，Google Maps 與 OpenStreetMap 都可顯示家、大花及回家線段。這項功能不使用 Google Routes／Directions API，不必另啟用路線 API；預覽距離是座標中心間的直線距離，不是 Google 道路導航結果。選家與一次套用的操作見 [專案說明](USER_GUIDE.md)。
 
 ## 準備與本機設定
 

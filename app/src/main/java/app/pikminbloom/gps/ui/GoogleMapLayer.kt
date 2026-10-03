@@ -41,6 +41,7 @@ class GoogleMapLayer(
     private var zoom = 17.0
     private var topInset = 0
     private var bottomInset = 0
+    private var rightInset = 0
     private var waypoints: List<Waypoint> = emptyList()
     private var home: LatLng? = null
     private var route: List<GeoPoint> = emptyList()
@@ -67,7 +68,7 @@ class GoogleMapLayer(
             ready.uiSettings.isCompassEnabled = false
             ready.uiSettings.isRotateGesturesEnabled = false
             ready.uiSettings.isTiltGesturesEnabled = false
-            ready.setPadding(0, topInset, 0, bottomInset)
+            ready.setPadding(0, topInset, rightInset, bottomInset)
             ready.setOnMapLongClickListener { onLongPress(LatLng(it.latitude, it.longitude)) }
             ready.setOnMarkerClickListener { marker ->
                 (marker.tag as? Int)?.let(onWaypointTap)
@@ -85,15 +86,17 @@ class GoogleMapLayer(
     fun currentZoom(): Double = map?.cameraPosition?.zoom?.toDouble() ?: zoom
 
     /** Keep Google attribution and controls above the app's bottom panel. */
-    fun setContentInsets(top: Int, bottom: Int) {
+    fun setContentInsets(top: Int, bottom: Int, right: Int = 0) {
         val nextTop = top.coerceAtLeast(0)
         val nextBottom = bottom.coerceAtLeast(0)
-        if (nextTop == topInset && nextBottom == bottomInset) return
+        val nextRight = right.coerceAtLeast(0)
+        if (nextTop == topInset && nextBottom == bottomInset && nextRight == rightInset) return
         val ready = map
         val target = ready?.cameraPosition?.target
         topInset = nextTop
         bottomInset = nextBottom
-        ready?.setPadding(0, topInset, 0, bottomInset)
+        rightInset = nextRight
+        ready?.setPadding(0, topInset, rightInset, bottomInset)
         // Padding changes the camera's effective center. Keep the chosen coordinate under the
         // crosshair when the status card finishes layout or changes height.
         if (target != null) ready.moveCamera(CameraUpdateFactory.newLatLng(target))

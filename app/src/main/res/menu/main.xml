@@ -1,72 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
-
+<menu xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
         android:id="@+id/action_my_location"
         android:icon="@drawable/ic_my_location"
         android:title="@string/menu_my_location"
         app:showAsAction="ifRoom" />
-
     <item
         android:id="@+id/action_waypoint_list"
         android:icon="@drawable/ic_list"
         android:title="@string/menu_waypoint_list"
-        app:showAsAction="ifRoom" />
-
-    <item
-        android:id="@+id/action_overlay"
-        android:icon="@drawable/ic_flower"
-        android:title="@string/menu_overlay"
         app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_scan_flowers"
-        android:icon="@drawable/ic_scan"
-        android:title="@string/menu_scan_flowers"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_setup"
-        android:icon="@drawable/ic_check"
-        android:title="@string/menu_setup"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_settings"
-        android:icon="@drawable/ic_settings"
-        android:title="@string/menu_settings"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_home"
-        android:icon="@drawable/ic_home"
-        android:title="@string/menu_home"
-        app:showAsAction="never" />
-
-    <item android:id="@+id/action_jump_coords" android:title="@string/menu_jump_coords" app:showAsAction="never" />
-    <item android:id="@+id/action_spiral" android:title="@string/menu_spiral" app:showAsAction="never" />
-    <item android:id="@+id/action_real_steps" android:title="@string/real_steps_title" app:showAsAction="never" />
-    <item android:id="@+id/action_map_provider" android:title="@string/menu_map_provider" app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_import"
-        android:icon="@drawable/ic_import"
-        android:title="@string/menu_import"
-        app:showAsAction="never" />
-
-    <item android:id="@+id/action_paste_coordinates" android:title="@string/collection_title" app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_export_json"
-        android:icon="@drawable/ic_export"
-        android:title="@string/menu_export_json"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_export_gpx"
-        android:icon="@drawable/ic_export"
-        android:title="@string/menu_export_gpx"
-        app:showAsAction="never" />
-
+    <item android:id="@+id/action_overlay" android:icon="@drawable/ic_flower" android:title="@string/menu_overlay" app:showAsAction="never"/>
+    <item android:id="@+id/action_scan_flowers" android:icon="@drawable/ic_scan" android:title="@string/menu_scan_flowers" app:showAsAction="never"/>
+    <item android:id="@+id/action_setup" android:icon="@drawable/ic_check" android:title="@string/menu_setup" app:showAsAction="never"/>
+    <item android:id="@+id/action_settings" android:icon="@drawable/ic_settings" android:title="@string/menu_settings" app:showAsAction="ifRoom"/>
+    <item android:id="@+id/action_home" android:icon="@drawable/ic_home" android:title="@string/menu_home" app:showAsAction="never"/>
+    <item android:id="@+id/action_jump_coords" android:title="@string/menu_jump_coords" app:showAsAction="never"/>
+    <item android:id="@+id/action_spiral" android:title="@string/menu_spiral" app:showAsAction="never"/>
+    <item android:id="@+id/action_real_steps" android:title="@string/real_steps_title" app:showAsAction="never"/>
+    <item android:id="@+id/action_map_provider" android:title="@string/menu_map_provider" app:showAsAction="never"/>
+    <item android:id="@+id/action_import" android:icon="@drawable/ic_import" android:title="@string/menu_import" app:showAsAction="never"/>
+    <item android:id="@+id/action_paste_coordinates" android:title="@string/collection_title" app:showAsAction="never"/>
+    <item android:id="@+id/action_export_json" android:icon="@drawable/ic_export" android:title="@string/menu_export_json" app:showAsAction="never"/>
+    <item android:id="@+id/action_export_gpx" android:icon="@drawable/ic_export" android:title="@string/menu_export_gpx" app:showAsAction="never"/>
 </menu>

@@ -131,32 +131,32 @@
     <string name="setup_todo">尚未完成</string>
     <string name="setup_manual">需手動確認</string>
 
-    <string name="setup_location_title">1. 定位權限</string>
-    <string name="setup_location_desc">需要「精確位置」才能在開始時記錄真實位置（家），並在回家後與真實 GPS 接軌。建議在系統設定中把本 App 的位置權限改成「一律允許」。</string>
+    <string name="setup_location_title">定位權限</string>
+    <string name="setup_location_desc">允許精確定位，用來取得真實位置。模擬巡邏會在開始時記錄家；真實 GPS 步數模式也需要定位權限。</string>
 
-    <string name="setup_notification_title">2. 通知權限</string>
-    <string name="setup_notification_desc">巡邏是前景服務，需要常駐通知；抵達大花時也會用通知加震動提醒你去領花蜜。</string>
+    <string name="setup_notification_title">通知權限</string>
+    <string name="setup_notification_desc">允許通知後，可在通知列查看狀態，並接收抵達大花或回家的提醒。</string>
 
-    <string name="setup_mock_title">3. 開發者選項 → 選擇模擬位置應用程式</string>
-    <string name="setup_mock_desc">HyperOS / 小米：設定 → 我的裝置 → 全部規格 → 連點「OS 版本」7 次開啟開發者選項；接著到 設定 → 其他設定 → 開發者選項 → 選擇模擬位置應用程式 → 選「阿皮小夥伴」。</string>
+    <string name="setup_mock_title">開發者選項 → 選擇模擬位置應用程式</string>
+    <string name="setup_mock_desc">到 Android「開發者選項 → 選擇模擬位置應用程式」，選「阿皮小夥伴」。只用真實 GPS 步數模式可略過這項。</string>
 
-    <string name="setup_health_title">4. Health Connect（步數）</string>
-    <string name="setup_health_desc">巡邏走出來的距離會換算成步數寫入 Health Connect，Pikmin Bloom 才能拿來培育花苗。需要步數與距離的讀寫權限。</string>
-    <string name="setup_health_hint">提示：在 Health Connect → 資料來源與優先順序 中，把本 App 移到最上面，遊戲才會優先採用這裡的步數。</string>
+    <string name="setup_health_title">Health Connect（步數）</string>
+    <string name="setup_health_desc">模擬巡邏需要步數與距離的讀寫權限；真實 GPS 步數模式只需要步數讀寫。不使用步數功能時可略過。</string>
+    <string name="setup_health_hint">步數未出現在遊戲時，檢查 Health Connect 的資料來源與優先順序，以及遊戲的步數與背景存取授權。寫入成功不保證遊戲採計。</string>
     <string name="setup_health_unavailable">這台裝置目前沒有可用的 Health Connect</string>
     <string name="setup_health_update">Health Connect 需要更新</string>
     <string name="action_open_health_connect">開啟 Health Connect</string>
 
-    <string name="setup_battery_title">5. 電池最佳化排除</string>
-    <string name="setup_battery_desc">HyperOS 的省電策略會殺掉前景服務。請把本 App 排除電池最佳化，並到 設定 → 應用程式 → 阿皮小夥伴 → 省電策略 選「無限制」，同時開啟「自啟動」。</string>
+    <string name="setup_battery_title">電池最佳化排除</string>
+    <string name="setup_battery_desc">要在背景持續執行，請排除電池最佳化並檢查背景活動限制。小米／HyperOS 裝置可能另需開啟「自啟動」及「無限制」省電策略。</string>
     <string name="action_exclude_battery">排除電池最佳化</string>
 
-    <string name="setup_overlay_title">6. 浮動控制列權限（顯示在其他應用程式上層）</string>
+    <string name="setup_overlay_title">浮動控制列權限（顯示在其他應用程式上層）</string>
     <string name="setup_overlay_desc">開啟後才能在 Pikmin Bloom 畫面上顯示浮動控制列，不用切回本 App 就能暫停 / 回家 / 停止巡邏。</string>
     <string name="setup_overlay_hint">HyperOS / 小米：除了「顯示在其他應用程式上層」，還要到 設定 → 應用程式 → 阿皮小夥伴 → 權限 開啟「後台彈出介面」，浮動控制列才會在遊戲上層出現。</string>
     <string name="action_open_overlay_settings">開啟懸浮視窗權限</string>
 
-    <string name="setup_game_title">7. Pikmin Bloom 遊戲內設定（需自行操作）</string>
+    <string name="setup_game_title">Pikmin Bloom 遊戲內設定（需自行操作）</string>
     <string name="setup_game_desc">Pikmin Bloom：設定 → 隱私權&amp;步數 → 步數 → 選擇 Health Connect → 開啟設定 → 允許讀取步數 → 新增存取權 → 允許「在背景存取資料」。\n手機設定 → 應用程式 → Pikmin Bloom → 權限 → 位置 → 一律允許。</string>
     <string name="action_open_settings_app_info">開啟應用程式資訊</string>
     <string name="action_open_pikmin">開啟 Pikmin Bloom</string>

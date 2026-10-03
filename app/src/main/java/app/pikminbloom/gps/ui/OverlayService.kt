@@ -523,7 +523,8 @@ class OverlayService : Service() {
 
         val color = ContextCompat.getColor(this, phaseColor(state))
         b.handle.backgroundTintList = ColorStateList.valueOf(color)
-        b.status.setTextColor(color)
+        // The handle carries the phase colour; status text needs contrast on the dark overlay.
+        b.status.setTextColor(ContextCompat.getColor(this, R.color.overlay_text))
 
         if (!expanded) return
 

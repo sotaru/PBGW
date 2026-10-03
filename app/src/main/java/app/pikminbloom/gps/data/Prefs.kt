@@ -194,7 +194,7 @@ class Prefs(context: Context) {
         set(v) = sp.edit { putInt(KEY_TRIP_WANDER_MIN, v) }
 
     private fun str(key: String, default: Double): Double =
-        sp.getString(key, null)?.trim()?.toDoubleOrNull() ?: default
+        sp.getString(key, null)?.trim()?.toDoubleOrNull()?.takeIf { it.isFinite() } ?: default
 
     private inline fun <reified E : Enum<E>> enum(key: String, default: E): E {
         val raw = sp.getString(key, null) ?: return default

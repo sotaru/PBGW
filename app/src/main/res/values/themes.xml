@@ -1,9 +1,54 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme (Material 3, dynamic colors applied from PikminGpsApp). -->
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
     <style name="Theme.PikminGps" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">?attr/isLightTheme</item>
+        <item name="android:windowLightNavigationBar">?attr/isLightTheme</item>
         <item name="preferenceTheme">@style/PreferenceThemeOverlay</item>
+        <item name="materialButtonStyle">@style/Widget.Pbgw.Button</item>
+        <item name="textInputStyle">@style/Widget.Material3.TextInputLayout.OutlinedBox</item>
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.Pbgw.BottomSheet</item>
+        <item name="colorPrimary">@color/brand_primary</item>
+        <item name="colorOnPrimary">@color/brand_on_primary</item>
+        <item name="colorPrimaryContainer">@color/brand_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/brand_on_primary_container</item>
+        <item name="colorSecondary">@color/brand_secondary</item>
+        <item name="colorOnSecondary">@color/brand_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/brand_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/brand_on_secondary_container</item>
+        <item name="colorSurface">@color/brand_surface</item>
+        <item name="colorSurfaceContainer">@color/brand_surface_container</item>
+        <item name="colorSurfaceContainerLow">@color/brand_surface</item>
+        <item name="colorSurfaceContainerHigh">@color/brand_surface_container</item>
+        <item name="colorOnSurface">@color/brand_on_surface</item>
+        <item name="colorOnSurfaceVariant">@color/brand_on_surface_variant</item>
+        <item name="colorOutline">@color/brand_outline</item>
+        <item name="colorOutlineVariant">@color/brand_outline_variant</item>
+        <item name="android:colorBackground">@color/brand_surface</item>
+    </style>
+    <style name="Widget.Pbgw.Button" parent="Widget.Material3.Button">
+        <item name="android:minHeight">48dp</item>
+        <item name="cornerRadius">16dp</item>
+    </style>
+    <style name="Widget.Pbgw.QuickButton" parent="Widget.Material3.Button.TextButton">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="iconPadding">6dp</item>
+        <item name="iconSize">20dp</item>
+        <item name="cornerRadius">16dp</item>
+    </style>
+    <style name="ThemeOverlay.Pbgw.BottomSheet" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.Pbgw.BottomSheet</item>
+    </style>
+    <style name="Widget.Pbgw.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Pbgw.Sheet</item>
+    </style>
+    <style name="ShapeAppearance.Pbgw.Sheet" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">28dp</item>
+        <item name="cornerSizeTopRight">28dp</item>
     </style>
 </resources>

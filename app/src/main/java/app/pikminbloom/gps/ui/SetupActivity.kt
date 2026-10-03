@@ -52,6 +52,7 @@ class SetupActivity : AppCompatActivity() {
         steps = StepInjector(this)
 
         binding.toolbar.setNavigationOnClickListener { finish() }
+        binding.btnDone.setOnClickListener { finish() }
 
         locationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { refresh() }
         notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { refresh() }
@@ -82,7 +83,7 @@ class SetupActivity : AppCompatActivity() {
             title = R.string.setup_location_title,
             desc = R.string.setup_location_desc,
             status = if (Permissions.hasFineLocation(this)) Status.OK else Status.TODO,
-            primaryLabel = R.string.action_grant,
+            primaryLabel = if (Permissions.hasFineLocation(this)) null else R.string.action_grant,
             primaryAction = { locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) },
             secondaryLabel = R.string.action_open_settings_app_info,
             secondaryAction = { Permissions.openAppDetails(this) },
@@ -210,6 +211,7 @@ class SetupActivity : AppCompatActivity() {
                 Status.MANUAL -> R.string.setup_manual
             }
         )
+        row.icon.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         row.icon.setImageResource(iconFor(status))
         row.icon.setColorFilter(colorFor(status))
         row.status.setTextColor(colorFor(status))
@@ -251,7 +253,7 @@ class SetupActivity : AppCompatActivity() {
         binding.root,
         when (status) {
             Status.OK -> androidx.appcompat.R.attr.colorPrimary
-            Status.TODO -> androidx.appcompat.R.attr.colorError
+            Status.TODO -> androidx.appcompat.R.attr.colorPrimary
             Status.MANUAL -> com.google.android.material.R.attr.colorOnSurfaceVariant
         },
     )

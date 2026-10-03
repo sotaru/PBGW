@@ -31,12 +31,10 @@ object RealGpsStepsDialog {
             addView(TextView(context).apply {
                 text = context.getString(R.string.real_steps_jitter_help, prefs.config().speedJitterPct)
             })
-            addView(TextView(context).apply { setText(R.string.real_steps_target) })
-            addView(target)
-            addView(TextView(context).apply { setText(R.string.real_steps_rate) })
-            addView(rate)
+            addView(UiForms.field(context, context.getString(R.string.real_steps_target), target))
+            addView(UiForms.field(context, context.getString(R.string.real_steps_rate), rate))
         }
-        val dialog = MaterialAlertDialogBuilder(context).setTitle(R.string.real_steps_title).setView(content)
+        val dialog = MaterialAlertDialogBuilder(context).setTitle(R.string.real_steps_title).setView(android.widget.ScrollView(context).apply { addView(content) })
             .setPositiveButton(R.string.real_steps_start, null).setNegativeButton(R.string.action_cancel, null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {

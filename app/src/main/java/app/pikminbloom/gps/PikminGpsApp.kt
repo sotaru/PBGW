@@ -6,14 +6,12 @@ import android.app.NotificationManager
 import android.util.Log
 import app.pikminbloom.gps.mock.MockLocationController
 import app.pikminbloom.gps.service.PatrolService
-import com.google.android.material.color.DynamicColors
 import org.osmdroid.config.Configuration
 
 class PikminGpsApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        DynamicColors.applyToActivitiesIfAvailable(this)
 
         // osmdroid needs a user agent for the OSM tile servers and a private cache dir.
         Configuration.getInstance().apply {

@@ -26,12 +26,63 @@ class CollectionRouteTest {
         assertEquals(4, parsed.points[1].line)
     }
 
-    @Test fun malformedRowsAreNotSilentlyDropped() {
+    @Test fun malformedRowsAreSkippedAndReported() {
         for (row in listOf("沒有座標", "91,121", "25,181", "NaN,121", "1e999,121", "25")) {
-            val error = runCatching { CoordinatePasteParser.parse("25,121\n$row\n26,122") }.exceptionOrNull()
-            assertTrue("$row must fail", error is IllegalArgumentException)
-            assertTrue(error!!.message!!.contains("第 2 行"))
+            val parsed = CoordinatePasteParser.parse("25,121\n$row\n26,122")
+            assertEquals(listOf(2), parsed.skippedLines)
+            assertEquals(listOf(1, 3), parsed.points.map { it.line })
         }
+    }
+
+    @Test fun findsCoordinatesInsideMixedTextAndFullWidthSymbols() {
+        val parsed = CoordinatePasteParser.parse("今天採花清單\n家【２５．０３３０，１２１．５６５４】\n大花 A：緯度:25.0348, 經度:121.5680\n大花 B (25.0356 / 121.5620) 已確認\n備註：不用匯入")
+        assertEquals(listOf(1, 5), parsed.skippedLines)
+        assertEquals(3, parsed.points.size)
+        assertEquals(LatLng(25.0330, 121.5654), parsed.points[0].position)
+        assertEquals("家", parsed.points[0].name)
+        assertEquals(LatLng(25.0348, 121.5680), parsed.points[1].position)
+        assertEquals(LatLng(25.0356, 121.5620), parsed.points[2].position)
+    }
+
+    @Test fun numberedRowsPreferFullDecimalPair() {
+        val parsed = CoordinatePasteParser.parse("1 25.0330 121.5654\n2 25.0348 121.5680")
+        assertEquals(LatLng(25.0330, 121.5654), parsed.points[0].position)
+        assertEquals(LatLng(25.0348, 121.5680), parsed.points[1].position)
+    }
+
+    @Test fun numberedIntegerCoordinatesAndNamesContainingLatArePreserved() {
+        val parsed = CoordinatePasteParser.parse("1 25 121\nChocolate,26,122")
+        assertEquals(LatLng(25.0, 121.0), parsed.points[0].position)
+        assertEquals("Chocolate", parsed.points[1].name)
+    }
+
+    @Test fun findsPairAfterAnInvalidCandidateAndUsesOnePerLine() {
+        val parsed = CoordinatePasteParser.parse("無效 91,181；家 25.033,121.565；另一組 26,122\n大花 25.034,121.566")
+        assertEquals(2, parsed.points.size)
+        assertEquals(LatLng(25.033, 121.565), parsed.points[0].position)
+    }
+
+    @Test fun coordinateUrlsAndLabelsWorkWithoutTreatingDatesOrIdsAsLocations() {
+        val parsed = CoordinatePasteParser.parse("日期 2026-10-03\nID ABC25.033,121.565\nhttps://maps.google.com/?q=25.033,121.565\nlatitude: -25.034; longitude: -121.566")
+        assertEquals(listOf(1, 2), parsed.skippedLines)
+        assertEquals("座標 1", parsed.points[0].name)
+        assertEquals(LatLng(-25.034, -121.566), parsed.points[1].position)
+    }
+
+    @Test fun skipsBlankAndCommentLinesWithoutCountingThemAsErrors() {
+        val parsed = CoordinatePasteParser.parse("\n# 備註 27,123\n25,121\n標題\n26,122\n25,121")
+        assertEquals(listOf(4), parsed.skippedLines)
+        assertEquals(1, parsed.duplicates)
+        assertEquals(2, parsed.points.size)
+    }
+
+    @Test fun noValidPairStillGivesUsefulErrorAndLimitsApplyAfterSkipping() {
+        val error = runCatching { CoordinatePasteParser.parse("標題\n91,181\n25") }.exceptionOrNull()
+        assertTrue(error!!.message!!.contains("略過 3 行"))
+        val rows = (0..300).joinToString("\n") { "備註\n位置 25,${120.0 + it / 10000.0}" }
+        val parsed = CoordinatePasteParser.parse(rows)
+        assertEquals(301, parsed.points.size)
+        assertEquals(301, parsed.skippedLines.size)
     }
 
     @Test fun requiresHomeAndDistinctFlower() {

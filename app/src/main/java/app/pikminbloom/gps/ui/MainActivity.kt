@@ -21,6 +21,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.core.view.doOnLayout
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -114,6 +115,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     private var trailLast: LatLng? = null
     private var lastBearing = 0f
     private var currentHome: LatLng? = null
+    private var detailsExpanded = false
     private var centeredOnRealPosition = false
 
     /** Last phase we reacted to, so the floating bar is only started/stopped on a real transition. */
@@ -136,8 +138,12 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         currentHome = prefs.customHome ?: prefs.home
 
         registerLaunchers()
+        detailsExpanded = savedInstanceState?.getBoolean("details_expanded") ?: false
+        renderDetailToggle()
         applyInsets()
         setupMap()
+        binding.root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> sizeControlPanel() }
+        binding.topChrome.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> sizeControlPanel(); updateGoogleInsets() }
         binding.bottomCard.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateGoogleInsets() }
         googleSavedState = savedInstanceState?.getBundle("google_map_state")
         if (prefs.mapProvider == MapProvider.GOOGLE) switchMap(MapProvider.GOOGLE)
@@ -268,6 +274,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     override fun onSaveInstanceState(outState: Bundle) {
         googleLayer?.let { outState.putBundle("google_map_state", it.saveState()) }
+        outState.putBoolean("details_expanded", detailsExpanded)
         super.onSaveInstanceState(outState)
     }
 
@@ -317,18 +324,42 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     private fun applyInsets() {
-        val margin = resources.getDimensionPixelSize(R.dimen.space_s)
+        val margin = resources.getDimensionPixelSize(R.dimen.space_m)
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            binding.toolbar.updatePadding(top = bars.top, left = bars.left, right = bars.right)
+            binding.topChrome.updatePadding(top = bars.top, left = bars.left, right = bars.right)
             (binding.bottomCard.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
                 lp.bottomMargin = bars.bottom + margin
                 lp.leftMargin = bars.left + margin
                 lp.rightMargin = bars.right + margin
                 binding.bottomCard.layoutParams = lp
             }
+            binding.root.post { sizeControlPanel(); updateGoogleInsets() }
             insets
         }
+    }
+
+    private fun sizeControlPanel() {
+        if (binding.root.width == 0 || binding.root.height == 0) return
+        val landscape = binding.root.width > binding.root.height
+        val lp = binding.bottomCard.layoutParams as ViewGroup.MarginLayoutParams
+        val available = (binding.root.height - binding.topChrome.height - lp.bottomMargin - 16.dp()).coerceAtLeast(1)
+        binding.panelScroll.maximumHeight = if (landscape) available else minOf((binding.root.height * 0.62f).toInt(), available)
+        val width = minOf(if (landscape) (binding.root.width * 0.46f).toInt() else binding.root.width - lp.leftMargin - lp.rightMargin, 600.dp()).coerceAtLeast(1)
+        val cardParams = lp as androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
+        val gravity = android.view.Gravity.BOTTOM or if (landscape) android.view.Gravity.RIGHT else android.view.Gravity.CENTER_HORIZONTAL
+        if (lp.width != width || cardParams.gravity != gravity) {
+            cardParams.width = width; cardParams.gravity = gravity; binding.bottomCard.layoutParams = cardParams
+        }
+    }
+
+    private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
+
+    private fun renderDetailToggle() {
+        show(binding.detailContent, detailsExpanded)
+        binding.btnDetails.setText(if (detailsExpanded) R.string.ui_collapse else R.string.ui_expand)
+        binding.btnDetails.setIconResource(if (detailsExpanded) R.drawable.ic_arrow_downward else R.drawable.ic_arrow_upward)
+        ViewCompat.setStateDescription(binding.btnDetails, getString(if (detailsExpanded) R.string.ui_collapse else R.string.ui_expand))
     }
 
     private fun setupMap() {
@@ -346,6 +377,13 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     private fun setupButtons() {
+        binding.btnRoutes.setOnClickListener { showWaypointList() }
+        binding.btnJump.setOnClickListener { showJumpSheet() }
+        binding.btnTools.setOnClickListener { showToolsSheet() }
+        binding.btnDetails.setOnClickListener {
+            detailsExpanded = !detailsExpanded
+            renderDetailToggle()
+        }
         binding.btnStart.setOnClickListener { showPatrolModeDialog() }
         binding.btnPause.setOnClickListener { if (RealGpsStepsService.isRunning) RealGpsStepsService.pause(this) else PatrolService.pause(this) }
         binding.btnResume.setOnClickListener { if (RealGpsStepsService.isRunning) RealGpsStepsService.resume(this) else PatrolService.resume(this) }
@@ -410,6 +448,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     // ------------------------------------------------------------------ live controls (移動方式 / 搖桿)
 
     private fun renderLiveControls() {
+        show(binding.liveControls, !RealGpsStepsService.isRunning)
         show(binding.btnTravel, !RealGpsStepsService.isRunning)
         show(binding.btnJoystick, !RealGpsStepsService.isRunning)
         val mode = PatrolService.controlSpeedMode
@@ -602,10 +641,26 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     private fun updateGoogleInsets() {
-        val top = binding.toolbar.height
-        val bottom = (binding.root.height - binding.bottomCard.top).coerceAtLeast(0)
-        googleLayer?.setContentInsets(top, bottom)
-        binding.mapCrosshair.translationY = if (mapProvider == MapProvider.GOOGLE) (top - bottom) / 2f else 0f
+        val top = binding.topChrome.height
+        val landscape = binding.root.width > binding.root.height
+        val cardParams = binding.bottomCard.layoutParams as ViewGroup.MarginLayoutParams
+        val bottom = if (landscape) cardParams.bottomMargin else (binding.root.height - binding.bottomCard.top).coerceAtLeast(0)
+        val right = if (landscape) (binding.root.width - binding.bottomCard.left).coerceAtLeast(0) else 0
+        googleLayer?.setContentInsets(top, bottom, right)
+        binding.mapCrosshair.translationY = (top - bottom) / 2f
+        binding.mapCrosshair.translationX = -right / 2f
+        // OSM has no Google-style content padding. Give it the same visible map viewport so
+        // the crosshair stays usable when the control panel expands.
+        val lp = binding.map.layoutParams as ViewGroup.MarginLayoutParams
+        if (lp.topMargin != top || lp.bottomMargin != bottom || lp.rightMargin != right) {
+            val previous = if (binding.map.isLaidOut) binding.map.mapCenter.let { GeoPoint(it.latitude, it.longitude) }
+                else GeoPoint(lastCenteredPosition.lat, lastCenteredPosition.lon)
+            lp.topMargin = top
+            lp.bottomMargin = bottom
+            lp.rightMargin = right
+            binding.map.layoutParams = lp
+            binding.map.doOnLayout { binding.map.controller.setCenter(previous) }
+        }
     }
 
     private var overlayGeneration = 0L
@@ -725,6 +780,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             RealStepsPhase.FINISHING -> R.string.real_steps_finishing
             else -> R.string.real_steps_title
         })
+        binding.tvSummary.text = getString(R.string.ui_real_summary, state.written, state.target, state.pending)
         binding.tvDetails.text = listOf(
             getString(R.string.real_steps_written, state.written, state.target),
             getString(R.string.real_steps_generated, state.generated, state.pending),
@@ -1023,6 +1079,12 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     private fun renderStatus(state: PatrolState) {
         binding.tvPhase.text = if (state.mode == PatrolMode.SPIRAL && state.phase == PatrolPhase.WALKING) getString(R.string.phase_spiral) else phaseText(state.phase)
 
+        binding.tvSummary.text = when {
+            state.phase == PatrolPhase.IDLE -> getString(R.string.ui_route_summary, store.activeRouteName(), store.load().size) + "\n" + getString(R.string.ui_idle_hint)
+            state.currentWaypointName != null -> getString(R.string.ui_summary_target, state.currentWaypointName, distanceText(state.distanceToTargetM)) + "\n" +
+                getString(R.string.ui_walk_metric, distanceText(state.distanceWalkedM)) + " · " + getString(R.string.ui_steps_metric, state.sessionSteps)
+            else -> getString(R.string.ui_walk_metric, distanceText(state.distanceWalkedM)) + " · " + getString(R.string.ui_steps_metric, state.sessionSteps)
+        }
         val lines = ArrayList<String>(6)
         val name = state.currentWaypointName
         if (state.phase == PatrolPhase.IDLE || name == null) {
@@ -1193,13 +1255,37 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     private fun showPatrolModeDialog() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.dlg_patrol_mode)
-            .setItems(arrayOf(getString(R.string.mode_waypoints), getString(R.string.mode_spiral), getString(R.string.real_steps_title))) { _, which ->
-                when (which) { 0 -> startPatrol(0); 1 -> startSpiral(); else -> startRealGpsSteps() }
-            }
-            .setNegativeButton(R.string.action_cancel, null)
-            .show()
+        ActionSheet.show(this, R.string.ui_mode_help, R.string.ui_toolbar_subtitle, listOf(
+            ActionSheet.Item(R.string.mode_waypoints, R.drawable.ic_flower, R.string.ui_mode_route_desc) { startPatrol(0) },
+            ActionSheet.Item(R.string.mode_spiral, R.drawable.ic_walk, R.string.ui_mode_spiral_desc) { startSpiral() },
+            ActionSheet.Item(R.string.real_steps_title, R.drawable.ic_my_location, R.string.ui_mode_steps_desc) { startRealGpsSteps() },
+        ))
+    }
+
+    private fun showJumpSheet() {
+        ActionSheet.show(this, R.string.ui_jump, R.string.ui_jump_desc, listOf(
+            ActionSheet.Item(R.string.action_jump_map_center, R.drawable.ic_map_crosshair, R.string.ui_jump_center_desc) { jumpTo(mapCenter()) },
+            ActionSheet.Item(R.string.menu_jump_coords, R.drawable.ic_navigation, R.string.ui_jump_coords_desc) { promptJumpCoords() },
+            ActionSheet.Item(R.string.menu_home, R.drawable.ic_home) { showHomeDialog() },
+        ))
+    }
+
+    private fun showToolsSheet() {
+        ActionSheet.show(this, R.string.ui_tools, R.string.ui_tools_desc, listOf(
+            ActionSheet.Item(R.string.ui_section_routes),
+            ActionSheet.Item(R.string.collection_title, R.drawable.ic_import, R.string.ui_paste_desc) { showCoordinatePaste() },
+            ActionSheet.Item(R.string.menu_scan_flowers, R.drawable.ic_scan) { startScanFlow() },
+            ActionSheet.Item(R.string.menu_import, R.drawable.ic_import) { importLauncher.launch(arrayOf(MIME_ANY)) },
+            ActionSheet.Item(R.string.menu_export_json, R.drawable.ic_export) { exportJsonLauncher.launch(getString(R.string.export_json_filename)) },
+            ActionSheet.Item(R.string.menu_export_gpx, R.drawable.ic_export) { exportGpxLauncher.launch(getString(R.string.export_gpx_filename)) },
+            ActionSheet.Item(R.string.ui_section_map),
+            ActionSheet.Item(R.string.menu_my_location, R.drawable.ic_my_location) { goToMyLocation() },
+            ActionSheet.Item(R.string.menu_map_provider, R.drawable.ic_navigation) { showMapProviderDialog() },
+            ActionSheet.Item(R.string.menu_overlay, R.drawable.ic_gamepad) { toggleOverlay() },
+            ActionSheet.Item(R.string.ui_section_setup),
+            ActionSheet.Item(R.string.menu_setup, R.drawable.ic_check, R.string.ui_setup_entry_desc) { startActivity(Intent(this, SetupActivity::class.java)) },
+            ActionSheet.Item(R.string.menu_settings, R.drawable.ic_settings) { startActivity(Intent(this, SettingsActivity::class.java)) },
+        ))
     }
 
     private fun startRealGpsSteps() {
@@ -1247,7 +1333,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(pad, pad / 2, pad, 0)
             addView(android.widget.TextView(this@MainActivity).apply { setText(R.string.spiral_width_explanation) })
-            addView(input)
+            addView(UiForms.field(this@MainActivity, getString(R.string.ui_spiral_label), input))
         }
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.spiral_width_title)
@@ -1292,7 +1378,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             setSingleLine()
         }
         val pad = resources.getDimensionPixelSize(R.dimen.space_xl)
-        val box = android.widget.FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
+        val box = android.widget.FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(UiForms.field(this@MainActivity, getString(R.string.ui_coordinate_label), input)) }
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.menu_jump_coords)
             .setView(box)
@@ -1352,19 +1438,21 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             prefs.customHome?.let { setText("%.6f, %.6f".format(it.lat, it.lon)) }
         }
         val pad = resources.getDimensionPixelSize(R.dimen.space_xl)
-        val box = android.widget.FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
-        MaterialAlertDialogBuilder(this)
+        val box = android.widget.FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(UiForms.field(this@MainActivity, getString(R.string.ui_coordinate_label), input)) }
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.action_home_enter_coords)
             .setView(box)
-            .setPositiveButton(R.string.action_save) { _, _ ->
-                val parts = input.text?.toString().orEmpty().split(',', ' ').map { it.trim() }.filter { it.isNotEmpty() }
-                val lat = parts.getOrNull(0)?.toDoubleOrNull()
-                val lon = parts.getOrNull(1)?.toDoubleOrNull()
-                val p = if (lat != null && lon != null) runCatching { LatLng(lat, lon) }.getOrNull() else null
-                if (p == null) toast(getString(R.string.toast_home_coords_invalid)) else setCustomHome(p)
-            }
+            .setPositiveButton(R.string.action_save, null)
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val position = LatLng.parse(input.text.toString())
+                if (position == null) input.error = getString(R.string.toast_home_coords_invalid)
+                else { setCustomHome(position); dialog.dismiss() }
+            }
+        }
+        dialog.show()
     }
 
     private fun setCustomHome(p: LatLng?) {
