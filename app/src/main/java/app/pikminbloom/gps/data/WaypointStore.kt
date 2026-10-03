@@ -96,6 +96,12 @@ class WaypointStore private constructor(context: Context) {
 
     fun clear() = save(emptyList())
 
+    /** Clear every route, preserving route names, modes and the active selection. Write failures throw. */
+    @Synchronized
+    fun clearAllWaypoints() {
+        commit(state.copy(routes = state.routes.map { it.copy(waypoints = emptyList()) }), strict = true)
+    }
+
     // ---------------------------------------------------------------- routes
 
     fun routeList(): List<Route> = state.routes

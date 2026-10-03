@@ -110,6 +110,13 @@ class Prefs(context: Context) {
         }
 
     val homeSavedAtMs: Long get() = sp.getLong(KEY_HOME_SAVED_AT, 0L)
+
+    /** Both home choices disappear together; unrelated settings and health queues stay intact. */
+    fun clearHomes(): Boolean = sp.edit()
+        .remove(KEY_HOME_LAT).remove(KEY_HOME_LON).remove(KEY_HOME_SAVED_AT)
+        .remove(KEY_CUSTOM_HOME_LAT).remove(KEY_CUSTOM_HOME_LON)
+        .commit()
+
     val savedHomeAgeMs: Long get() = if (homeSavedAtMs == 0L) Long.MAX_VALUE else System.currentTimeMillis() - homeSavedAtMs
 
     var lastPosition: LatLng?

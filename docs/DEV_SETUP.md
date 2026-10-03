@@ -4,9 +4,9 @@
 
 這台電腦的專案位於 `C:\Projects\PBGW`，Google Maps 金鑰也放在這裡的 `secrets.properties`。換電腦時可以選自己的目錄，不必照搬這個路徑。
 
-## 目前版本：1.3.0／11
+## 目前版本：1.3.1／12
 
-介面與互動重整、座標容錯解析、設定搜尋及驗證，詳見 [UI 與 code review](UI_REVIEW.md)。完整操作已移至 [使用指南](USER_GUIDE.md)。
+介面與互動重整、座標容錯解析、設定搜尋及驗證，詳見 [UI 與 code review](UI_REVIEW.md)。1.3.1 新增一次清除家與所有路線的大花點，保留路線與設定。完整操作已移至 [使用指南](USER_GUIDE.md)。
 
 | 功能 | 對應程式碼 | 目前做法 |
 |---|---|---|
@@ -15,6 +15,7 @@
 | 座標貼上 | `CoordinatePasteParser.kt`、`CoordinatePasteDialog.kt`、`CollectionRouteTest.kt` | 正規化全形字元，逐行找一組十進位座標，略過無效行並保留行號。每頁只顯示目前步驟，返回保留輸入；最後套用才存檔。 |
 | 設定 | `SettingsActivity.kt`、`SettingInput.kt`、`SettingInputTest.kt` | 本機搜尋、單位及有效範圍、保留錯誤輸入；負海拔可輸入。 |
 | 大花與浮動控制 | `WaypointDialogs.kt`、`item_waypoint.xml`、`overlay_bar.xml` | 大花資料與按鈕分列、48dp 操作範圍；浮動按鈕分兩排，保留拖曳、關閉及搖桿功能。 |
+| 一次清除地點 | `MainActivity.kt`、`WaypointStore.kt`、`Prefs.kt` | 先檢查服務與中斷紀錄，再確認全路線的大花總數；嚴格寫入清空的大花資料，移除兩種家與保存時間。閒置畫面只讀已儲存的家，避免舊服務狀態把標記帶回來。 |
 | Review 修正 | `Prefs.kt`、`MockLocationController.kt`、`MainActivity.kt`、`WaypointDialogs.kt` | 排除非有限數值，明確處理 FLP 權限例外；修正家的輸入及附近搜尋位置。 |
 
 1.2.x 的採花規劃、步數佇列、GPS 分析與搖桿核心沿用原實作；歷史差異見 [版本紀錄](../CHANGELOG.md)。
@@ -70,7 +71,7 @@ Linux／macOS（已設定 Java 與 Android SDK）：
 
 - Debug APK：`app/build/outputs/apk/debug/app-debug.apk`。
 - Release APK：執行 `assembleRelease`，輸出到 `app/build/outputs/apk/release/app-release.apk`。
-- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 11／1.3.0。
+- 版本在 `app/build.gradle` 的 `versionCode`／`versionName`；目前是 12／1.3.1。
 - 本版有 193 項單元測試：192 項通過、1 項略過、0 項失敗。缺少本機 `live_user5.png` 的既有辨識圖片測試會略過。
 - Debug／release 建置及 release 必要的 `lintVitalRelease` 已通過。
 - 一般 `lintDebug` 在這組 AGP／Kotlin／AndroidX 工具上會因 Kotlin UAST 檢查器崩潰。要完成其餘檢查，可明確選用備用流程：
@@ -79,7 +80,7 @@ Linux／macOS（已設定 Java 與 Android SDK）：
 .\gradlew.bat lintDebug --init-script scripts/lint-kotlin-workaround.init.gradle --console=plain
 ```
 
-這個 init script 只在該次執行停用 `UnsafeOptInUsageError`、`UnsafeOptInUsageWarning` 與 `RepeatOnLifecycleWrongUsage`；不改 App 設定、不建立忽略錯誤的 baseline。其餘檢查為 0 錯誤、51 警告，並不代表全部 Lint 檢查已通過。停用項目、人工 review 與驗證範圍見 [UI review](UI_REVIEW.md)。
+這個 init script 只在該次執行停用 `UnsafeOptInUsageError`、`UnsafeOptInUsageWarning` 與 `RepeatOnLifecycleWrongUsage`；不改 App 設定、不建立忽略錯誤的 baseline。其餘檢查為 0 錯誤、52 警告，並不代表全部 Lint 檢查已通過。停用項目、人工 review 與驗證範圍見 [UI review](UI_REVIEW.md)。
 
 ### 簽章要注意什麼？
 
@@ -115,7 +116,7 @@ $adbPath = '<Android SDK 路徑>/platform-tools/adb.exe'
 & $adbPath -s '<實機序號>' shell dumpsys package app.pikminbloom.gps | Select-String 'versionCode=|versionName=|pkgFlags='
 ~~~
 
-本版應顯示 `versionName=1.3.0`、`versionCode=11`，`pkgFlags` 不含 `DEBUGGABLE`。再確認手機上的「阿皮小夥伴」主畫面、Google Maps 底圖與右上角選單能正常開啟。安裝成功與功能測試分開記錄；正式版沒有 debug receiver，不能用 debug 廣播驗證控制行為。
+本版應顯示 `versionName=1.3.1`、`versionCode=12`，`pkgFlags` 不含 `DEBUGGABLE`。再確認手機上的「阿皮小夥伴」主畫面、Google Maps 底圖與右上角選單能正常開啟。安裝成功與功能測試分開記錄；正式版沒有 debug receiver，不能用 debug 廣播驗證控制行為。
 
 2026-10-03 已更新 TB373FU 的 release 1.2.7，確認版號 9、不可偵錯，裝置上的 APK 雜湊與本機 release 相符。更新前暫停蚊香巡邏，更新後從 checkpoint 接回原位置、距離與步數，再恢復巡邏。原有自訂家與設定保留。
 

@@ -141,6 +141,7 @@ object WaypointDialogs {
         onFocus: (Waypoint) -> Unit,
         onStartHere: (Int) -> Unit,
         onAddRequested: () -> Unit,
+        onClearAllRequested: () -> Unit,
     ) {
         val binding = SheetWaypointListBinding.inflate(LayoutInflater.from(activity))
         val sheet = BottomSheetDialog(activity)
@@ -178,10 +179,11 @@ object WaypointDialogs {
             sheet.dismiss()
             // Re-open this sheet once the user is done picking, so switching routes feels in-place.
             showRoutePicker(activity, store) {
-                showList(activity, store, prefs, onFocus, onStartHere, onAddRequested)
+                showList(activity, store, prefs, onFocus, onStartHere, onAddRequested, onClearAllRequested)
             }
         }
         binding.btnAdd.setOnClickListener { sheet.dismiss(); onAddRequested() }
+        binding.btnClearAll.setOnClickListener { sheet.dismiss(); onClearAllRequested() }
         binding.btnSearchNearby.setOnClickListener {
             sheet.dismiss()
             val host = activity as? androidx.appcompat.app.AppCompatActivity ?: return@setOnClickListener

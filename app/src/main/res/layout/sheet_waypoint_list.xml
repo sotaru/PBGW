@@ -70,6 +70,18 @@
         android:padding="16dp"
         android:text="@string/ui_route_list_hint"
         android:textAppearance="?attr/textAppearanceBodySmall" />
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnClearAll"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/space_xl"
+        android:layout_marginEnd="@dimen/space_xl"
+        android:minHeight="48dp"
+        android:text="@string/clear_locations_title"
+        android:textColor="?attr/colorError"
+        app:icon="@drawable/ic_delete"
+        app:iconTint="?attr/colorError" />
     <TextView
         android:id="@+id/tvEmpty"
         android:layout_width="match_parent"

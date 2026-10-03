@@ -1244,7 +1244,47 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             onFocus = { center(LatLng(it.lat, it.lon)) },
             onStartHere = { startHereOrGoTo(it) },
             onAddRequested = { addWaypointAtMapCenter() },
+            onClearAllRequested = { confirmClearLocations() },
         )
+    }
+
+    private fun confirmClearLocations() {
+        fun canClear(): Boolean {
+            if (PatrolService.isRunning || RealGpsStepsService.isRunning || FlowerScanner.isRunning ||
+                PatrolCheckpoint.resumable(this) != null) {
+                toast(getString(R.string.clear_locations_busy))
+                return false
+            }
+            return true
+        }
+        if (!canClear()) return
+        val routes = store.routeList()
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.clear_locations_title)
+            .setMessage(getString(R.string.clear_locations_message, routes.size, routes.sumOf { it.waypoints.size }))
+            .setPositiveButton(R.string.clear_locations_action, null)
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                // Services can start while the confirmation is open; check again before changing data.
+                if (!canClear()) return@setOnClickListener
+                try {
+                    store.clearAllWaypoints()
+                    check(prefs.clearHomes()) { "Home preferences could not be saved" }
+                    dialog.dismiss()
+                    snack(getString(R.string.clear_locations_done), Snackbar.LENGTH_LONG)
+                } catch (e: Exception) {
+                    android.util.Log.w(PatrolService.TAG, "clear locations failed", e)
+                    toast(getString(R.string.clear_locations_failed))
+                } finally {
+                    currentHome = homeForDisplay(PatrolService.state.value)
+                    rebuildOverlays()
+                    render(PatrolService.state.value)
+                }
+            }
+        }
+        dialog.show()
     }
 
     private fun addWaypointAtMapCenter() {
@@ -1399,7 +1439,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     /** Idle state retains the previous patrol's home; it must not override a newly saved choice. */
     private fun homeForDisplay(state: PatrolState): LatLng? =
-        if (state.phase == PatrolPhase.IDLE) prefs.customHome ?: prefs.home ?: state.home
+        if (state.phase == PatrolPhase.IDLE) prefs.customHome ?: prefs.home
         else state.home ?: prefs.customHome ?: prefs.home
 
     /**

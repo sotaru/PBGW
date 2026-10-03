@@ -40,4 +40,10 @@
     <string name="ui_real_summary">已寫入 %1$d / %2$d 步 · 待寫 %3$d 步</string>
     <string name="ui_settings_range">請輸入 %1$s～%2$s 之間的數字。</string>
     <string name="ui_close">關閉</string>
+    <string name="clear_locations_title">清除家與所有大花</string>
+    <string name="clear_locations_message">會清除自訂家、上次記住的家，以及全部 %1$d 條路線裡的 %2$d 個大花點。\n\n路線名稱、巡邏設定與步數資料會保留。清除後無法復原，確定要清除嗎？</string>
+    <string name="clear_locations_action">全部清除</string>
+    <string name="clear_locations_done">家與所有路線的大花已清除。</string>
+    <string name="clear_locations_busy">請先停止巡邏、步數模式與掃描；有中斷紀錄時，先續走或放棄，再清除。</string>
+    <string name="clear_locations_failed">清除未完成。請重試，並在重新開啟 App 後確認結果。</string>
 </resources>
