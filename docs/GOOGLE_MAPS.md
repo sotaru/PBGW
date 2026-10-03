@@ -40,6 +40,8 @@ MAPS_API_KEY=你的金鑰
 
 ## 設定後要確認什麼？
 
+本版會在狀態卡高度改變時保留地圖中心，讓小十字與家的座標對齊。開發時需注意，Google Maps 的相機中心依據扣除 padding 後的可視區域計算，詳見 [Google 的 map padding 說明](https://developers.google.com/maps/documentation/android-sdk/configure-map)。
+
 裝置需要可用的 Google Play 服務。切換後確認地圖載入、拖曳、縮放、長按選單與準星正常。模擬巡邏另檢查大花、路線與模擬位置；真實 GPS 步數模式檢查實機位置與狀態顯示，再試著切回 OpenStreetMap。沒有金鑰時，App 會顯示提示並繼續使用 OpenStreetMap。
 
 如果有金鑰卻還是空白地圖，先確認 API 已啟用、帳務正常、套件名稱與 SHA-1 都填對，再看 Logcat 是否有 Google Maps 授權錯誤。Debug 和 release 若使用不同簽章，要分別加入對應的 SHA-1；換電腦後的 debug 簽章也可能不同。

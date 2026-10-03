@@ -164,7 +164,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         super.onResume()
         binding.map.onResume()
         googleLayer?.onResume()
-        currentHome = PatrolService.state.value.home ?: prefs.customHome ?: prefs.home
+        currentHome = homeForDisplay(PatrolService.state.value)
         rebuildOverlays()
         render(PatrolService.state.value)
         maybeOfferResume()
@@ -498,7 +498,9 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     // ------------------------------------------------------------------ map
 
     private fun centerInitially() {
-        val known = PatrolService.state.value.position ?: prefs.home ?: prefs.lastPosition
+        val state = PatrolService.state.value
+        val known = state.position.takeIf { state.phase != PatrolPhase.IDLE }
+            ?: prefs.customHome ?: prefs.home ?: prefs.lastPosition
         if (known != null) {
             centeredOnRealPosition = true
             center(known, resetZoom = true)
@@ -516,18 +518,20 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
         }
     }
 
-    private fun center(p: LatLng, resetZoom: Boolean = false) {
+    private fun center(p: LatLng, resetZoom: Boolean = false, animate: Boolean = !resetZoom) {
         lastCenteredPosition = p
         if (mapProvider == MapProvider.GOOGLE) {
-            googleLayer?.center(p, if (resetZoom) DEFAULT_ZOOM else null, animate = !resetZoom)
+            googleLayer?.center(p, if (resetZoom) DEFAULT_ZOOM else null, animate = animate)
             return
         }
         val gp = GeoPoint(p.lat, p.lon)
         if (resetZoom) {
             binding.map.controller.setZoom(DEFAULT_ZOOM)
             binding.map.controller.setCenter(gp)
-        } else {
+        } else if (animate) {
             binding.map.controller.animateTo(gp)
+        } else {
+            binding.map.controller.setCenter(gp)
         }
     }
 
@@ -689,7 +693,7 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
             renderRealSteps(realSteps)
             return
         }
-        val home = state.home ?: prefs.customHome ?: prefs.home
+        val home = homeForDisplay(state)
         if (home != currentHome || renderedMode != state.mode || renderedSpiralCenter != state.spiralCenter || renderedSpiralWidth != state.spiralLineWidthM) {
             currentHome = home
             renderedMode = state.mode
@@ -1276,6 +1280,11 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
 
     // ------------------------------------------------------------------ custom home (家的位置)
 
+    /** Idle state retains the previous patrol's home; it must not override a newly saved choice. */
+    private fun homeForDisplay(state: PatrolState): LatLng? =
+        if (state.phase == PatrolPhase.IDLE) prefs.customHome ?: prefs.home ?: state.home
+        else state.home ?: prefs.customHome ?: prefs.home
+
     /**
      * 家的位置: by default home is always a fresh real fix (see [startPatrol]); this lets the user
      * pin a home somewhere else instead - the "stay in Japan for a while" case - which the service
@@ -1328,12 +1337,18 @@ class MainActivity : AppCompatActivity(), MapEventsReceiver {
     }
 
     private fun setCustomHome(p: LatLng?) {
+        if (PatrolService.isRunning) {
+            toast(getString(R.string.toast_home_locked))
+            return
+        }
         prefs.customHome = p
-        currentHome = p ?: prefs.home
+        currentHome = homeForDisplay(PatrolService.state.value)
         rebuildOverlays()
         render(PatrolService.state.value)
         if (p != null) {
-            center(p)
+            // A pending startup GPS lookup must not recenter the map after the user's choice.
+            centeredOnRealPosition = true
+            center(p, animate = false)
             toast(getString(R.string.toast_home_custom_set, p.toString()))
         } else {
             toast(getString(R.string.toast_home_custom_cleared))

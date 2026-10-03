@@ -86,9 +86,17 @@ class GoogleMapLayer(
 
     /** Keep Google attribution and controls above the app's bottom panel. */
     fun setContentInsets(top: Int, bottom: Int) {
-        topInset = top.coerceAtLeast(0)
-        bottomInset = bottom.coerceAtLeast(0)
-        map?.setPadding(0, topInset, 0, bottomInset)
+        val nextTop = top.coerceAtLeast(0)
+        val nextBottom = bottom.coerceAtLeast(0)
+        if (nextTop == topInset && nextBottom == bottomInset) return
+        val ready = map
+        val target = ready?.cameraPosition?.target
+        topInset = nextTop
+        bottomInset = nextBottom
+        ready?.setPadding(0, topInset, 0, bottomInset)
+        // Padding changes the camera's effective center. Keep the chosen coordinate under the
+        // crosshair when the status card finishes layout or changes height.
+        if (target != null) ready.moveCamera(CameraUpdateFactory.newLatLng(target))
     }
 
     fun center(position: LatLng, zoomLevel: Double? = null, animate: Boolean = true) {

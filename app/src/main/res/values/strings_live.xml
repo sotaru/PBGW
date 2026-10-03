@@ -18,7 +18,7 @@
     <string name="action_home_enter_coords">輸入座標</string>
     <string name="action_home_clear">改回真實位置</string>
     <string name="dlg_home_coords_hint">緯度, 經度（例如 35.6812, 139.7671）</string>
-    <string name="toast_home_custom_set">已自訂家的位置：%1$s</string>
+    <string name="toast_home_custom_set">已儲存家的位置：%1$s\n下次開始巡邏時使用</string>
     <string name="toast_home_custom_cleared">已改回：以真實位置當作家</string>
     <string name="toast_home_coords_invalid">座標格式不對，請用「緯度, 經度」</string>
     <string name="toast_home_locked">巡邏中無法更改家的位置，請先停止</string>
